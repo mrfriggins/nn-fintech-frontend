@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* FORCED THEME DEFAULTS */
+:root {
+  --terminal-green: #00ff41;
+}
+
+body {
+  background-color: #050505 !important; /* Deepest Black */
+  color: #00ff41 !important;           /* Neon Green */
+  margin: 0;
+  padding: 0;
+}
+
+/* Fallback classes if Tailwind fails to build */
+.text-neon { color: #00ff41 !important; }
+.bg-neon { background-color: #00ff41 !important; }
+.border-neon { border: 1px solid #00ff41 !important; }
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-ticker {
+  display: flex;
+  animation: ticker 30s linear infinite;
+}

@@ -4,11 +4,41 @@ import { useRouter } from "next/navigation";
 import Ticker from "../components/Ticker";
 import CandleChart from "../components/CandleChart";
 
-// THE MASTER ROUTER: Points to live server if it exists, falls back to local for testing
+// THE MASTER ROUTER
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+// ISO 3166 GLOBAL COUNTRY LIST
+const countries = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+  "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+  "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+  "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
+  "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana",
+  "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan",
+  "Kazakhstan", "Kenya", "Kiribati", "Korea, North", "Korea, South", "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg",
+  "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+  "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+  "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+  "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan",
+  "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
 
 export default function Dashboard() {
   const router = useRouter();
+
+  // ==========================================
+  // AUTHENTICATION STATES
+  // ==========================================
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [country, setCountry] = useState("Tanzania");
+
+  // ==========================================
+  // DASHBOARD STATES
+  // ==========================================
   const [user, setUser] = useState<any>(null);
   const [stocks, setStocks] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState<any[]>([]);
@@ -33,19 +63,27 @@ export default function Dashboard() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // ==========================================
-  // 1. DATA INITIALIZATION
+  // 1. DATA INITIALIZATION & SESSION CHECK
   // ==========================================
   const fetchData = async () => {
     const token = localStorage.getItem("token");
-    if (!token) { router.push("/auth"); return; }
+    if (!token) { 
+      setIsLoggedIn(false);
+      setLoading(false); 
+      return; 
+    }
+
     try {
       const [pRes, mRes] = await Promise.all([
         fetch(`${API_URL}/api/users/profile`, { headers: { "Authorization": `Bearer ${token}` } }),
         fetch(`${API_URL}/api/market/stocks`, { headers: { "Authorization": `Bearer ${token}` } }).catch(() => ({ json: () => [] }))
       ]);
       
+      if (!pRes.ok) throw new Error("Invalid Session");
+
       const profile = await pRes.json();
       setUser(profile);
+      setIsLoggedIn(true);
       
       let backendData = [];
       try { backendData = await mRes.json(); } catch(e) {}
@@ -69,7 +107,13 @@ export default function Dashboard() {
         const aRes = await fetch(`${API_URL}/api/admin/all-transactions`, { headers: { "Authorization": `Bearer ${token}` } });
         if (aRes.ok) setAdminLogs(await aRes.json());
       }
-    } catch (e) { console.error("LINK FAILURE"); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error("SESSION EXPIRED OR LINK FAILURE"); 
+      localStorage.removeItem("token");
+      setIsLoggedIn(false);
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => {
@@ -234,8 +278,77 @@ export default function Dashboard() {
     }
   };
 
+  // ==========================================
+  // 6. AUTHENTICATION HANDLER
+  // ==========================================
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const endpoint = authMode === "login" ? "/auth/login" : "/auth/register";
+    const body = authMode === "login" ? { email, password } : { email, password, fullName, country };
+
+    try {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        setIsLoggedIn(true);
+        window.location.reload(); // Boot up the terminal
+      } else {
+        alert(data.message || "Authentication Failed");
+      }
+    } catch (err) {
+      alert("SERVER UNREACHABLE: Check your Backend URL.");
+    }
+  };
+
+  // ==========================================
+  // 7. RENDER LOGIC
+  // ==========================================
+
   if (loading) return <div className="bg-[#050505] min-h-screen flex items-center justify-center text-[#00ff41] font-black uppercase tracking-widest">Decrypting Ledger...</div>;
 
+  // --- VAULT DOOR: RENDER AUTH IF NOT LOGGED IN ---
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
+        <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 shadow-[0_0_80px_rgba(0,0,0,1)]">
+          <div className="mb-8">
+            <h2 className="text-3xl font-black text-[#00ff41] uppercase italic tracking-tighter leading-none">
+              {authMode === "login" ? "Identity Verification" : "Create Operator Profile"}
+            </h2>
+            <div className="h-1 w-20 bg-[#00ff41] mt-2"></div>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-4">
+            {authMode === "register" && (
+              <>
+                <input type="text" placeholder="LEGAL FULL NAME" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
+                <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase cursor-pointer">
+                  {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </>
+            )}
+            <input type="email" placeholder="SECURE EMAIL" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
+            <input type="password" placeholder="ACCESS KEY" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
+            
+            <button type="submit" className="w-full bg-[#00ff41] text-black font-black py-4 uppercase hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all tracking-widest mt-4">
+              {authMode === "login" ? "Enter Vault" : "Register Credentials"}
+            </button>
+          </form>
+
+          <button onClick={() => setAuthMode(authMode === "login" ? "register" : "login")} className="w-full mt-8 text-[9px] text-zinc-500 uppercase font-black hover:text-[#00ff41] tracking-widest border-t border-zinc-800 pt-6">
+            {authMode === "login" ? "Request Access -> New Account" : "Existing Operator -> Access Vault"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- TERMINAL OPEN: RENDER DASHBOARD IF LOGGED IN ---
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col">
       <Ticker stocks={stocks} />
@@ -272,7 +385,7 @@ export default function Dashboard() {
             <p className="text-[9px] text-zinc-600 uppercase font-black mb-1">Active Operator</p>
             <p className="text-[10px] font-bold truncate text-[#00ff41] mb-4">{user?.email || "SYSTEM_ADMIN"}</p>
             <button 
-              onClick={() => { localStorage.removeItem("token"); router.push("/auth"); }} 
+              onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} 
               className="w-full border border-red-500/50 text-red-500 py-3 text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-[0_0_10px_rgba(220,38,38,0.1)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)]"
             >
               Terminate Session

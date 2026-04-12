@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export default function Register() {
   const [formData, setFormData] = useState({
     name: "",
@@ -21,7 +23,7 @@ export default function Register() {
 
     try {
       // Direct connection to your Node.js backend
-      const response = await fetch("http://127.0.0.1:8080/auth/register", {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

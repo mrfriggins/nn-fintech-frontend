@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export default function AdminHQ() {
   const router = useRouter();
   const [logs, setLogs] = useState<any[]>([]);
@@ -11,7 +13,7 @@ export default function AdminHQ() {
   const fetchAdminData = async () => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://localhost:8080/api/admin/all-transactions", {
+      const res = await fetch("${API_URL}/api/admin/all-transactions", {
         headers: { "Authorization": `Bearer ${token}` }
       });
 

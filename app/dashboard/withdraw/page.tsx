@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export default function WithdrawPage() {
   const [amount, setAmount] = useState("");
   const [paypalEmail, setPaypalEmail] = useState("");
@@ -10,7 +12,7 @@ export default function WithdrawPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8080/api/withdraw/instant", {
+      const res = await fetch("${API_URL}/api/withdraw/instant", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

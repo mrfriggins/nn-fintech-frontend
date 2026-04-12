@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 // Added IChartApi and ISeriesApi to satisfy TypeScript's strict mode
 import { createChart, ColorType, CandlestickSeries, Time, IChartApi, ISeriesApi } from "lightweight-charts";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export default function TradeTerminal() {
   const [stocks, setStocks] = useState<any[]>([]);
   const [demoBalance, setDemoBalance] = useState(0);
@@ -78,7 +80,7 @@ export default function TradeTerminal() {
     const headers = { "Authorization": `Bearer ${localStorage.getItem("token")}` };
     
     try {
-      const stockRes = await fetch("http://localhost:8080/api/market/stocks", { headers });
+      const stockRes = await fetch("${API_URL}/api/market/stocks", { headers });
       if (stockRes.ok) {
           const liveStocks = await stockRes.json();
           setStocks(liveStocks);
@@ -100,7 +102,7 @@ export default function TradeTerminal() {
           }
       }
 
-      const accRes = await fetch("http://localhost:8080/api/account/balance", { headers });
+      const accRes = await fetch("${API_URL}/api/account/balance", { headers });
       if (accRes.ok) {
           const data = await accRes.json();
           setDemoBalance(data.demoBalance);
@@ -122,7 +124,7 @@ export default function TradeTerminal() {
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8080/api/trade/execute", {
+      const res = await fetch("${API_URL}/api/trade/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ symbol: activeAsset, amount: tradeAmount }),

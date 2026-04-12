@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export default function AuthGateway() {
   const router = useRouter();
   
@@ -18,7 +20,7 @@ export default function AuthGateway() {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch("http://localhost:8080/auth/register", {
+      const res = await fetch("${API_URL}/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
@@ -41,7 +43,7 @@ export default function AuthGateway() {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch("http://localhost:8080/auth/verify", {
+      const res = await fetch("${API_URL}/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp })
@@ -65,7 +67,7 @@ export default function AuthGateway() {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch("http://localhost:8080/auth/login", {
+      const res = await fetch("${API_URL}/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: email, password })

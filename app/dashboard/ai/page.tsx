@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
 export default function AiTerminal() {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [selectedAsset, setSelectedAsset] = useState("");
@@ -10,7 +12,7 @@ export default function AiTerminal() {
   // Fetch the available assets from the market engine
   useEffect(() => {
     const fetchMarket = async () => {
-      const res = await fetch("http://localhost:8080/api/market/stocks", {
+      const res = await fetch("${API_URL}/api/market/stocks", {
         headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
       });
       if (res.ok) {
@@ -27,7 +29,7 @@ export default function AiTerminal() {
     setLoading(true);
     setAnalysis(null);
     try {
-      const res = await fetch("http://localhost:8080/api/ai/analyze", {
+      const res = await fetch("${API_URL}/api/ai/analyze", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json", 

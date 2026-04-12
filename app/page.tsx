@@ -2,23 +2,23 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function RootPage() {
+/**
+ * THE ENTRY PROTOCOL
+ * This page redirects all traffic to the Dashboard.
+ * It ensures users land on the unified authentication gate.
+ */
+export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    // AUTH CHECK: Send logged-in users to v3.0, others to Auth
-    if (token) {
-      router.push("/dashboard");
-    } else {
-      router.push("/auth");
-    }
+    // Immediate redirection to the master dashboard logic
+    router.push("/dashboard");
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center font-mono">
-      <div className="text-white animate-pulse uppercase font-black tracking-widest text-xs">
-        Establishing Secure Handshake...
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono">
+      <div className="text-[#00ff41] text-xs font-black uppercase tracking-[0.2em] animate-pulse">
+        Initializing NN-Fintech Gateway...
       </div>
     </div>
   );

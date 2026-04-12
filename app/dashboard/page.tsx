@@ -279,12 +279,23 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // 6. AUTHENTICATION HANDLER
   // ==========================================
+  // 6. AUTHENTICATION HANDLER (HARDENED)
+  // ==========================================
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otp, setOtp] = useState("");
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    const endpoint = authMode === "login" ? "/auth/login" : "/auth/register";
-    const body = authMode === "login" ? { email, password } : { email, password, fullName, country };
+    
+    // Determine if we are logging in, registering, or verifying OTP
+    let endpoint = "";
+    if (isVerifying) endpoint = "/auth/verify";
+    else endpoint = authMode === "login" ? "/auth/login" : "/auth/register";
+
+    const body = isVerifying 
+      ? { email, otp } 
+      : (authMode === "login" ? { email, password } : { email, password, fullName, country });
 
     try {
       const res = await fetch(`${API_URL}${endpoint}`, {
@@ -292,61 +303,97 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      
       const data = await res.json();
+
       if (res.ok) {
-        localStorage.setItem("token", data.token);
-        setIsLoggedIn(true);
-        window.location.reload(); // Boot up the terminal
+        if (endpoint === "/auth/register") {
+          // Move to verification mode instead of logging in
+          setIsVerifying(true);
+          alert("ACCESS CODE SENT. Check your email to authorize this profile.");
+        } else {
+          // Success for Login or Verify
+          localStorage.setItem("token", data.token);
+          setIsLoggedIn(true);
+          window.location.reload(); 
+        }
       } else {
-        alert(data.message || "Authentication Failed");
+        // Backend returned an error (e.g., 400, 401, 404)
+        alert(data.error || data.message || "UNAUTHORIZED ACCESS");
       }
     } catch (err) {
-      alert("SERVER UNREACHABLE: Check your Backend URL.");
+      console.error("GATEWAY ERROR:", err);
+      alert("SERVER UNREACHABLE: Check Backend Status.");
     }
   };
-
   // ==========================================
   // 7. RENDER LOGIC
   // ==========================================
 
   if (loading) return <div className="bg-[#050505] min-h-screen flex items-center justify-center text-[#00ff41] font-black uppercase tracking-widest">Decrypting Ledger...</div>;
 
-  // --- VAULT DOOR: RENDER AUTH IF NOT LOGGED IN ---
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
-        <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 shadow-[0_0_80px_rgba(0,0,0,1)]">
-          <div className="mb-8">
-            <h2 className="text-3xl font-black text-[#00ff41] uppercase italic tracking-tighter leading-none">
-              {authMode === "login" ? "Identity Verification" : "Create Operator Profile"}
-            </h2>
-            <div className="h-1 w-20 bg-[#00ff41] mt-2"></div>
-          </div>
+  {/* --- VAULT DOOR: RENDER AUTH IF NOT LOGGED IN --- */}
+if (!isLoggedIn) {
+  return (
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
+      <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 shadow-[0_0_80px_rgba(0,0,0,1)]">
+        <div className="mb-8">
+          <h2 className="text-3xl font-black text-[#00ff41] uppercase italic tracking-tighter leading-none">
+            {isVerifying ? "Authorize Access" : (authMode === "login" ? "Identity Verification" : "Create Operator Profile")}
+          </h2>
+          <div className="h-1 w-20 bg-[#00ff41] mt-2"></div>
+        </div>
 
-          <form onSubmit={handleAuth} className="space-y-4">
-            {authMode === "register" && (
-              <>
-                <input type="text" placeholder="LEGAL FULL NAME" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
-                <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase cursor-pointer">
-                  {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </>
-            )}
-            <input type="email" placeholder="SECURE EMAIL" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
-            <input type="password" placeholder="ACCESS KEY" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
-            
-            <button type="submit" className="w-full bg-[#00ff41] text-black font-black py-4 uppercase hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all tracking-widest mt-4">
-              {authMode === "login" ? "Enter Vault" : "Register Credentials"}
-            </button>
-          </form>
+        <form onSubmit={handleAuth} className="space-y-4">
+          {isVerifying ? (
+            // --- MODE: OTP VERIFICATION ---
+            <div className="space-y-2">
+              <p className="text-[10px] text-zinc-500 uppercase font-black">Enter 6-Digit Security Code</p>
+              <input 
+                type="text" 
+                placeholder="XXXXXX" 
+                value={otp} 
+                onChange={(e) => setOtp(e.target.value)} 
+                className="w-full bg-black border border-[#00ff41] p-4 text-[#00ff41] outline-none text-center text-xl tracking-[0.5em] font-black" 
+                required 
+              />
+            </div>
+          ) : (
+            // --- MODE: LOGIN / REGISTER ---
+            <>
+              {authMode === "register" && (
+                <>
+                  <input type="text" placeholder="LEGAL FULL NAME" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
+                  <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase cursor-pointer">
+                    {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </>
+              )}
+              <input type="email" placeholder="SECURE EMAIL" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
+              <input type="password" placeholder="ACCESS KEY" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
+            </>
+          )}
+          
+          <button type="submit" className="w-full bg-[#00ff41] text-black font-black py-4 uppercase hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all tracking-widest mt-4">
+            {isVerifying ? "Confirm Code" : (authMode === "login" ? "Enter Vault" : "Register Credentials")}
+          </button>
+        </form>
 
+        {!isVerifying && (
           <button onClick={() => setAuthMode(authMode === "login" ? "register" : "login")} className="w-full mt-8 text-[9px] text-zinc-500 uppercase font-black hover:text-[#00ff41] tracking-widest border-t border-zinc-800 pt-6">
             {authMode === "login" ? "Request Access -> New Account" : "Existing Operator -> Access Vault"}
           </button>
-        </div>
+        )}
+        
+        {isVerifying && (
+          <button onClick={() => setIsVerifying(false)} className="w-full mt-4 text-[9px] text-red-500 uppercase font-black hover:underline tracking-widest">
+            Back to Login
+          </button>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // --- TERMINAL OPEN: RENDER DASHBOARD IF LOGGED IN ---
   return (

@@ -8,8 +8,8 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     const fetchTxs = async () => {
-      const res = await fetch("${API_URL}/api/account/transactions", {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      const res = await fetch(`${API_URL}/api/account/transactions`, {
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
       });
       if (res.ok) setTxs(await res.json());
     };

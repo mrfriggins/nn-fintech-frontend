@@ -12,7 +12,7 @@ export default function WithdrawPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("${API_URL}/api/withdraw/instant", {
+      const res = await fetch(`${API_URL}/api/withdraw/instant`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

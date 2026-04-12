@@ -13,7 +13,7 @@ export default function AdminHQ() {
   const fetchAdminData = async () => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch("${API_URL}/api/admin/all-transactions", {
+      const res = await fetch(`${API_URL}/api/admin/all-transactions`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
 

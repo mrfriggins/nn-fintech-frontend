@@ -47,7 +47,7 @@ export default function DepositPage() {
         },
         onApprove: async (data: any, actions: any) => {
           // Send the authorization to your backend vault to verify and capture
-          const res = await fetch("${API_URL}/api/deposit/capture", {
+          const res = await fetch(`${API_URL}/api/deposit/capture`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

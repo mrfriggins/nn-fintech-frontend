@@ -80,7 +80,7 @@ export default function TradeTerminal() {
     const headers = { "Authorization": `Bearer ${localStorage.getItem("token")}` };
     
     try {
-      const stockRes = await fetch("${API_URL}/api/market/stocks", { headers });
+      const stockRes = await fetch(`${API_URL}/api/market/stocks`, { headers });
       if (stockRes.ok) {
           const liveStocks = await stockRes.json();
           setStocks(liveStocks);
@@ -102,7 +102,7 @@ export default function TradeTerminal() {
           }
       }
 
-      const accRes = await fetch("${API_URL}/api/account/balance", { headers });
+      const accRes = await fetch(`${API_URL}/api/account/balance`, { headers });
       if (accRes.ok) {
           const data = await accRes.json();
           setDemoBalance(data.demoBalance);
@@ -124,7 +124,7 @@ export default function TradeTerminal() {
 
     setLoading(true);
     try {
-      const res = await fetch("${API_URL}/api/trade/execute", {
+      const res = await fetch(`${API_URL}/api/trade/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ symbol: activeAsset, amount: tradeAmount }),

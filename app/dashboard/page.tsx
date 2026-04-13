@@ -4,10 +4,8 @@ import { useRouter } from "next/navigation";
 import Ticker from "../components/Ticker";
 import CandleChart from "../components/CandleChart";
 
-// THE MASTER ROUTER
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// ISO 3166 GLOBAL COUNTRY LIST
 const countries = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
   "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
@@ -26,9 +24,7 @@ const countries = [
 export default function Dashboard() {
   const router = useRouter();
 
-  // ==========================================
-  // 1. AUTHENTICATION & VERIFICATION STATES
-  // ==========================================
+  // --- AUTH STATES ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -38,9 +34,7 @@ export default function Dashboard() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState("");
 
-  // ==========================================
-  // 2. DASHBOARD & MARKET CORE STATES
-  // ==========================================
+  // --- CORE SYSTEM STATES ---
   const [user, setUser] = useState<any>(null);
   const [stocks, setStocks] = useState<any[]>([]);
   const [portfolio, setPortfolio] = useState<any[]>([]);
@@ -52,20 +46,17 @@ export default function Dashboard() {
   const [checkoutTier, setCheckoutTier] = useState<string | null>(null);
   const [txIdInput, setTxIdInput] = useState("");
   
-  // ADVANCED RISK MANAGEMENT STATES
+  // --- TRADE STATES ---
   const [tradeAmount, setTradeAmount] = useState<number>(1000);
   const [tradeDuration, setTradeDuration] = useState<number>(60);
   const [takeProfit, setTakeProfit] = useState<number | "">(""); 
   const [stopLoss, setStopLoss] = useState<number | "">("");
 
-  // Quant AI Analysis States
+  // --- AI STATES ---
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // ==========================================
-  // 3. DATA INITIALIZATION & SESSION HANDSHAKE
-  // ==========================================
   const fetchData = async () => {
     const token = localStorage.getItem("token");
     if (!token) { 
@@ -76,15 +67,11 @@ export default function Dashboard() {
 
     try {
       const [pRes, mRes] = await Promise.all([
-        fetch(`${API_URL}/api/users/profile`, { 
-          headers: { "Authorization": `Bearer ${token}` } 
-        }),
-        fetch(`${API_URL}/api/market/stocks`, { 
-          headers: { "Authorization": `Bearer ${token}` } 
-        }).catch(() => ({ json: () => [] }))
+        fetch(`${API_URL}/api/users/profile`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/market/stocks`, { headers: { "Authorization": `Bearer ${token}` } }).catch(() => ({ json: () => [] }))
       ]);
       
-      if (!pRes.ok) throw new Error("UNAUTHORIZED_ACCESS");
+      if (!pRes.ok) throw new Error("UNAUTHORIZED");
 
       const profile = await pRes.json();
       setUser(profile);
@@ -98,9 +85,7 @@ export default function Dashboard() {
 
       const dummyCommodities = [
         { symbol: "XAU/USD (GOLD)", price: 2385.40, change: "+1.2%", volatility: 0.0008 },
-        { symbol: "XAG/USD (SILVER)", price: 29.10, change: "+0.8%", volatility: 0.0015 },
-        { symbol: "WTI CRUDE", price: 82.55, change: "-0.5%", volatility: 0.002 },
-        { symbol: "NATURAL GAS", price: 2.15, change: "+4.1%", volatility: 0.004 }
+        { symbol: "WTI CRUDE", price: 82.55, change: "-0.5%", volatility: 0.002 }
       ];
 
       const combinedMarketData = [...backendData, ...dummyCommodities];
@@ -109,13 +94,10 @@ export default function Dashboard() {
       if (!selectedAsset && combinedMarketData.length > 0) setSelectedAsset(combinedMarketData[0]);
 
       if (profile.role === "admin") {
-        const aRes = await fetch(`${API_URL}/api/admin/all-transactions`, { 
-          headers: { "Authorization": `Bearer ${token}` } 
-        });
+        const aRes = await fetch(`${API_URL}/api/admin/all-transactions`, { headers: { "Authorization": `Bearer ${token}` } });
         if (aRes.ok) setAdminLogs(await aRes.json());
       }
     } catch (e) { 
-      console.warn("SESSION_EXPIRED");
       localStorage.removeItem("token");
       setIsLoggedIn(false);
     } finally { 
@@ -129,20 +111,13 @@ export default function Dashboard() {
     return () => clearInterval(inv);
   }, []); // eslint-disable-line 
 
-  // ==========================================
-  // 4. MARKET SIMULATION ENGINE
-  // ==========================================
   useEffect(() => {
     if (stocks.length === 0) return;
     const tickInterval = setInterval(() => {
       setStocks(prev => prev.map(s => {
         const factor = s.volatility || 0.0005;
         const move = (Math.random() - 0.5) * (s.price * factor);
-        return { 
-          ...s, 
-          price: s.price + move, 
-          change: `${move >= 0 ? '+' : '-'}${Math.abs((move / s.price) * 100).toFixed(2)}%` 
-        };
+        return { ...s, price: s.price + move, change: `${move >= 0 ? '+' : '-'}${Math.abs((move / s.price) * 100).toFixed(2)}%` };
       }));
     }, 1000);
     return () => clearInterval(tickInterval);
@@ -153,24 +128,17 @@ export default function Dashboard() {
     return () => clearInterval(clock);
   }, []);
 
-  // ==========================================
-  // 5. OMNI-DIRECTIONAL LIQUIDATOR
-  // ==========================================
   useEffect(() => {
     if (portfolio.length === 0 || stocks.length === 0) return;
-    
     portfolio.forEach(position => {
       if (position.isClosing) return;
-
       const liveAsset = stocks.find(s => s.symbol === position.symbol);
       if (!liveAsset) return;
 
       const currentPrice = liveAsset.price;
       let triggerReason = null;
 
-      if (currentTime >= position.expiresAt) {
-        triggerReason = "TIME EXPIRED";
-      } 
+      if (currentTime >= position.expiresAt) triggerReason = "TIME EXPIRED";
       else if (position.side === 'buy') {
         if (position.tp && currentPrice >= position.tp) triggerReason = "TP HIT";
         if (position.sl && currentPrice <= position.sl) triggerReason = "SL HIT";
@@ -193,39 +161,22 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/trade/execute`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
-        },
-        body: JSON.stringify({ 
-          symbol: position.symbol, 
-          amount: position.invested, 
-          side: position.side === 'buy' ? 'sell' : 'buy' 
-        }) 
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ symbol: position.symbol, amount: position.invested, side: position.side === 'buy' ? 'sell' : 'buy' }) 
       });
       if (res.ok) {
         setPortfolio(prev => prev.filter(p => p.id !== contractId));
         fetchData(); 
       }
-    } catch (err) { console.error("LIQUIDATION_FAIL", err); }
+    } catch (err) {}
   };
 
-  // ==========================================
-  // 6. QUANT AI ENGINE
-  // ==========================================
   const runQuantAI = (asset: any) => {
     setSelectedAsset(asset);
     setIsAnalyzing(true);
     setAiAnalysis("");
-    
-    const phrases = [
-      `Analyzing ${asset.symbol} order flow... Dark pool accumulation detected. Support solidifying.`,
-      `Volatility expanding on ${asset.symbol}. Set tight stops. Algorithms targeting upper zones.`,
-      `Macro data indicates supply squeeze for ${asset.symbol}. Bias: BULLISH.`,
-      `Warning: Volume anomalies detected in ${asset.symbol}. High probability of liquidity sweep.`
-    ];
+    const phrases = [`Analyzing ${asset.symbol} order flow... Dark pool accumulation detected.`, `Volatility expanding on ${asset.symbol}.`, `Macro data indicates supply squeeze for ${asset.symbol}.`];
     const targetText = phrases[Math.floor(Math.random() * phrases.length)];
-    
     let i = 0;
     const interval = setInterval(() => {
       setAiAnalysis(targetText.slice(0, i)); i++;
@@ -233,9 +184,6 @@ export default function Dashboard() {
     }, 20);
   };
 
-  // ==========================================
-  // 7. AUTHENTICATION & OTP HANDSHAKE
-  // ==========================================
   const handleAuth = async (e: React.BaseSyntheticEvent) => {
     e.preventDefault();
     
@@ -253,10 +201,9 @@ export default function Dashboard() {
       
       const data = await res.json();
 
-      // SPECIFIC CHECK FOR 201 CREATED REGISTRATION
-      if (res.status === 201) {
+      if (res.status === 201 || (res.ok && endpoint === "/auth/register")) {
         setIsVerifying(true);
-        alert("AUTHORIZATION REQUIRED: Check your email for the 6-digit access code.");
+        alert("AUTHORIZATION REQUIRED: Check your email or Render logs for the 6-digit access code.");
         return;
       }
 
@@ -272,9 +219,6 @@ export default function Dashboard() {
     }
   };
 
-  // ==========================================
-  // 8. EXECUTION ENGINE
-  // ==========================================
   const openPosition = async (side: 'buy' | 'sell') => {
     if (!selectedAsset || !user) return;
     if (user.demoBalance < tradeAmount) return alert("INSUFFICIENT LIQUIDITY");
@@ -282,38 +226,21 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/trade/execute`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
-        },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ symbol: selectedAsset.symbol, amount: tradeAmount, side })
       });
       
       if (res.ok) {
-        const newContract = {
-          id: `ORD-${Date.now()}`,
-          symbol: selectedAsset.symbol,
-          side: side,
-          invested: tradeAmount,
-          qty: tradeAmount / selectedAsset.price,
-          entryPrice: selectedAsset.price,
-          expiresAt: Date.now() + (tradeDuration * 1000), 
-          tp: takeProfit ? Number(takeProfit) : null,
-          sl: stopLoss ? Number(stopLoss) : null,
-          isClosing: false
-        };
-        setPortfolio(prev => [...prev, newContract]);
+        setPortfolio(prev => [...prev, {
+          id: `ORD-${Date.now()}`, symbol: selectedAsset.symbol, side, invested: tradeAmount,
+          qty: tradeAmount / selectedAsset.price, entryPrice: selectedAsset.price,
+          expiresAt: Date.now() + (tradeDuration * 1000), tp: takeProfit ? Number(takeProfit) : null, sl: stopLoss ? Number(stopLoss) : null, isClosing: false
+        }]);
         fetchData(); 
         setTakeProfit(""); setStopLoss("");
-      } else {
-        alert("EXECUTION REJECTED.");
       }
-    } catch (err) { alert("NETWORK_ERROR"); }
+    } catch (err) {}
   };
-
-  // ==========================================
-  // 9. UI RENDERING
-  // ==========================================
 
   if (loading) return (
     <div className="bg-[#050505] min-h-screen flex flex-col items-center justify-center text-[#00ff41] font-mono animate-pulse">
@@ -374,15 +301,12 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col overflow-hidden">
       <Ticker stocks={stocks} />
-
       <div className="flex flex-1 overflow-hidden">
-        {/* COMMAND SIDEBAR */}
         <aside className="w-72 bg-[#0d0d0d] border-r border-zinc-800 p-8 flex flex-col shadow-[10px_0_30px_rgba(0,0,0,1)]">
           <div className="mb-12">
             <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase">NN-Fintech</h1>
             <div className="h-1 w-full bg-gradient-to-r from-[#00ff41] to-transparent mt-2"></div>
           </div>
-
           <nav className="flex-1 space-y-3">
             {["overview", "terminal", "licenses"].map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase transition-all ${activeTab === tab ? "bg-[#00ff41] text-black shadow-[0_0_15px_rgba(0,255,65,0.2)]" : "text-zinc-500 hover:text-[#00ff41]"}`}>{tab}</button>
@@ -391,19 +315,17 @@ export default function Dashboard() {
               <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-12 text-left px-5 py-4 text-[10px] font-black uppercase transition-all border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
             )}
           </nav>
-
           <div className="mt-auto p-5 bg-[#050505] border border-zinc-800 rounded-sm">
             <p className="text-[11px] font-bold truncate text-[#00ff41] mb-5 uppercase tracking-tighter">{user?.email}</p>
             <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 py-3 text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
           </div>
         </aside>
 
-        {/* MAIN OPERATIONS PANEL */}
         <main className="flex-1 p-10 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#051505] via-[#0a0a0a] to-[#0a0a0a]">
           <header className="flex justify-between items-end mb-12 border-b border-zinc-800 pb-10">
             <h2 className="text-6xl font-black uppercase italic tracking-tighter text-white">{activeTab}</h2>
             <div className="text-right">
-              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Simulated Liquidity</p>
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Simulated Liquidity</p>
               <p className="text-5xl font-black text-[#00ff41] tabular-nums tracking-tighter">${user?.demoBalance?.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
             </div>
           </header>
@@ -537,7 +459,6 @@ export default function Dashboard() {
         </main>
       </div>
 
-      {/* BLOCKCHAIN GATEWAY MODAL */}
       {checkoutTier && (
         <div className="fixed inset-0 bg-black/98 flex items-center justify-center z-[100] p-6 backdrop-blur-xl">
           <div className="bg-[#0c0c0c] border border-[#00ff41] p-12 max-w-xl w-full shadow-[0_0_100px_rgba(0,255,65,0.2)]">

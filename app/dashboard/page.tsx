@@ -203,7 +203,7 @@ export default function Dashboard() {
 
       if (res.status === 201 || (res.ok && endpoint === "/auth/register")) {
         setIsVerifying(true);
-        alert("AUTHORIZATION REQUIRED: Check your email or Render logs for the 6-digit access code.");
+        alert("AUTHORIZATION REQUIRED: Check your email (including Spam/Junk folder) for the 6-digit access code.");
         return;
       }
 

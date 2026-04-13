@@ -28,7 +28,6 @@ export default function Dashboard() {
   const [tradeAmount, setTradeAmount] = useState<number>(1000);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   
-  // AI Tutor States
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -99,17 +98,16 @@ export default function Dashboard() {
     } catch (err) {}
   };
 
-  // --- THE $20 AI TUTOR FUNCTION ---
   const runQuantAI = async (asset: any) => {
     setSelectedAsset(asset);
     
     if (!user?.hasActiveSubscription) {
-      setAiAnalysis("ACCESS DENIED: Quant AI Tutor requires an active Retail License ($20/mo). Upgrade to unlock market analysis and education.");
+      setAiAnalysis("ACCESS DENIED: Trading Academy requires an active Retail License ($20/mo). Upgrade to unlock market education.");
       return;
     }
 
     setIsAnalyzing(true);
-    setAiAnalysis("Establishing secure link to Quant Engine...");
+    setAiAnalysis("Loading Academy Lesson...");
     
     try {
       const res = await fetch(`${API_URL}/api/ai/tutor`, {
@@ -128,7 +126,7 @@ export default function Dashboard() {
         }, 15);
       }
     } catch (e) {
-      setAiAnalysis("Engine offline. Retry connection.");
+      setAiAnalysis("Academy offline. Retry connection.");
       setIsAnalyzing(false);
     }
   };
@@ -138,6 +136,15 @@ export default function Dashboard() {
         await fetch(`${API_URL}/api/payment/verify-crypto`, {
           method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
           body: JSON.stringify({ txId: `mock_${Date.now()}`, tier })
+        });
+        window.location.reload();
+      } catch(e) {}
+  };
+
+  const forceAdminUpgrade = async () => {
+      try {
+        await fetch(`${API_URL}/api/admin/force-upgrade`, {
+          method: "POST", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
         });
         window.location.reload();
       } catch(e) {}
@@ -187,13 +194,20 @@ export default function Dashboard() {
           <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase mb-10">NN-Fintech</h1>
           <nav className="flex-1 space-y-3">
             <button onClick={() => setActiveTab("overview")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "overview" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Overview</button>
-            <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Terminal & AI</button>
+            <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Terminal & Academy</button>
             <button onClick={() => setActiveTab("licenses")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
             
-            {/* WATCHTOWER SECURE RENDER */}
             {user?.role === "admin" && (
               <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-10 text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
             )}
+
+            {/* THE DEV BACKDOOR BUTTON */}
+            {user?.role !== "admin" && (
+                <button onClick={forceAdminUpgrade} className="w-full mt-4 text-left px-5 py-2 text-[8px] font-black text-zinc-600 hover:text-[#00ff41] uppercase tracking-widest border border-zinc-800">
+                    [DEV] Claim Admin Rights
+                </button>
+            )}
+
           </nav>
           <div className="mt-auto pt-5 border-t border-zinc-800">
              <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
@@ -241,10 +255,10 @@ export default function Dashboard() {
               </div>
 
               <div className="w-1/4 flex flex-col gap-6">
-                {/* AI TUTOR PANEL */}
+                {/* AI ACADEMY PANEL */}
                 <div className="bg-[#0d0d0d] border border-zinc-800 p-6 flex-1 flex flex-col">
                   <h3 className="text-[#00ff41] font-black uppercase text-[10px] tracking-widest mb-4 flex items-center">
-                    <span className="w-2 h-2 bg-[#00ff41] rounded-full mr-2 animate-pulse"></span> Quant AI Tutor
+                    <span className="w-2 h-2 bg-[#00ff41] rounded-full mr-2 animate-pulse"></span> Trading Academy AI
                   </h3>
                   <div className={`p-5 text-[11px] font-mono leading-relaxed border flex-1 ${!user?.hasActiveSubscription ? 'border-red-900/50 text-red-500 bg-red-900/10' : 'border-zinc-800 text-zinc-400 bg-black'}`}>
                     {aiAnalysis || "Awaiting Stream... Select an asset to analyze."}
@@ -274,7 +288,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
               <div className="p-12 border border-zinc-800 bg-[#0d0d0d] hover:border-[#00ff41] transition-all">
                 <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Retail Operator</h3>
-                <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Unlocks Live Trading & Quant AI Tutor.</p>
+                <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Unlocks Live Trading & Academy AI.</p>
                 <p className="text-4xl font-black text-[#00ff41] mb-10 italic">$20.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
                 <button onClick={() => simulatePurchase("RETAIL")} className="bg-[#00ff41] text-black w-full py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)]">Activate Terminal</button>
               </div>

@@ -98,21 +98,20 @@ export default function Dashboard() {
     } catch (err) {}
   };
 
-  const runQuantAI = async (asset: any) => {
-    setSelectedAsset(asset);
-    
+  const runQuantAI = async () => {
+    if (!selectedAsset) return;
     if (!user?.hasActiveSubscription) {
-      setAiAnalysis("ACCESS DENIED: Trading Academy requires an active Retail License ($20/mo). Upgrade to unlock market education.");
+      setAiAnalysis("ACCESS DENIED: Trading Academy requires an active Retail License ($20/mo).");
       return;
     }
 
     setIsAnalyzing(true);
-    setAiAnalysis("Loading Academy Lesson...");
+    setAiAnalysis("Querying OpenAI Neural Engine...");
     
     try {
       const res = await fetch(`${API_URL}/api/ai/tutor`, {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: asset.symbol, price: asset.price })
+        body: JSON.stringify({ symbol: selectedAsset.symbol, price: selectedAsset.price })
       });
       
       const data = await res.json();
@@ -126,27 +125,50 @@ export default function Dashboard() {
         }, 15);
       }
     } catch (e) {
-      setAiAnalysis("Academy offline. Retry connection.");
+      setAiAnalysis("Academy API offline. Retry connection.");
       setIsAnalyzing(false);
     }
   };
 
-  const simulatePurchase = async (tier: string) => {
+  const processPurchase = async (tier: string) => {
+      const txId = window.prompt(`TRANSFER PROTOCOL INITIATED.\n\nPlease complete the transfer to the verified Polygon address.\nEnter your Blockchain Transaction Hash (TxID) below to verify payment:`);
+      
+      if (!txId) return;
+
       try {
-        await fetch(`${API_URL}/api/payment/verify-crypto`, {
+        const res = await fetch(`${API_URL}/api/payment/verify-crypto`, {
           method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-          body: JSON.stringify({ txId: `mock_${Date.now()}`, tier })
+          body: JSON.stringify({ txId, tier })
         });
-        window.location.reload();
-      } catch(e) {}
+        const data = await res.json();
+        
+        if (res.ok) {
+            alert("SUCCESS: License Secured and Balance Updated.");
+            window.location.reload();
+        } else {
+            alert(`VERIFICATION FAILED: ${data.error}`);
+        }
+      } catch(e) {
+          alert("GATEWAY ERROR: Unable to reach blockchain API.");
+      }
   };
 
   const forceAdminUpgrade = async () => {
+      const secret = window.prompt("SECURITY PROTOCOL: Enter Developer Override Key:");
+      if (!secret) return;
+
       try {
-        await fetch(`${API_URL}/api/admin/force-upgrade`, {
-          method: "POST", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        const res = await fetch(`${API_URL}/api/admin/force-upgrade`, {
+          method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+          body: JSON.stringify({ adminSecret: secret })
         });
-        window.location.reload();
+        
+        if (res.ok) {
+            alert("Admin Rights Granted.");
+            window.location.reload();
+        } else {
+            alert("SECURITY BREACH: Incorrect Override Key.");
+        }
       } catch(e) {}
   };
 
@@ -194,20 +216,20 @@ export default function Dashboard() {
           <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase mb-10">NN-Fintech</h1>
           <nav className="flex-1 space-y-3">
             <button onClick={() => setActiveTab("overview")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "overview" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Overview</button>
-            <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Terminal & Academy</button>
+            <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Trading Terminal</button>
+            <button onClick={() => setActiveTab("academy")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "academy" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Trading Academy</button>
             <button onClick={() => setActiveTab("licenses")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
             
             {user?.role === "admin" && (
               <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-10 text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
             )}
 
-            {/* THE DEV BACKDOOR BUTTON */}
+            {/* THE SECURED DEV BACKDOOR BUTTON */}
             {user?.role !== "admin" && (
                 <button onClick={forceAdminUpgrade} className="w-full mt-4 text-left px-5 py-2 text-[8px] font-black text-zinc-600 hover:text-[#00ff41] uppercase tracking-widest border border-zinc-800">
                     [DEV] Claim Admin Rights
                 </button>
             )}
-
           </nav>
           <div className="mt-auto pt-5 border-t border-zinc-800">
              <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
@@ -227,7 +249,7 @@ export default function Dashboard() {
           {activeTab === "overview" && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               {stocks.map(s => (
-                <div key={s.symbol} onClick={() => {runQuantAI(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
+                <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
                   <div className="flex justify-between mb-4">
                      <span className="text-xs font-black text-zinc-400 group-hover:text-white">{s.symbol}</span>
                      <span className={`text-[10px] font-black ${s.change.includes('+') ? 'text-green-500' : 'text-red-500'}`}>{s.change}</span>
@@ -239,48 +261,86 @@ export default function Dashboard() {
           )}
 
           {activeTab === "terminal" && (
-            <div className="flex gap-10 min-h-[600px]">
-              <div className="w-1/4 bg-[#0d0d0d] border border-zinc-800 p-4 overflow-y-auto">
-                <p className="text-[10px] font-black text-zinc-500 mb-4 border-b border-zinc-800 pb-2 uppercase tracking-widest">Live Markets</p>
+            <div className="flex gap-6 min-h-[600px]">
+              <div className="w-1/5 bg-[#0d0d0d] border border-zinc-800 p-4 overflow-y-auto">
+                <p className="text-[10px] font-black text-zinc-500 mb-4 border-b border-zinc-800 pb-2 uppercase tracking-widest">Markets</p>
                 {stocks.map(s => (
-                  <div key={s.symbol} onClick={() => runQuantAI(s)} className={`p-4 cursor-pointer hover:bg-zinc-900 border-b border-zinc-900 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : ''}`}>
+                  <div key={s.symbol} onClick={() => setSelectedAsset(s)} className={`p-4 cursor-pointer hover:bg-zinc-900 border-b border-zinc-900 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : ''}`}>
                     <span className="font-black text-white text-xs">{s.symbol}</span>
                     <span className={`text-[10px] font-mono font-black ${s.change.includes('+') ? 'text-[#00ff41]' : 'text-red-500'}`}>${s.price.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
               
-              <div className="w-2/4 bg-[#0d0d0d] border border-zinc-800 p-1 flex items-center justify-center relative">
+              <div className="w-3/5 bg-[#0d0d0d] border border-zinc-800 p-1 flex items-center justify-center relative">
                  {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <span className="text-zinc-600 text-xs uppercase font-black tracking-widest">Connect Stream...</span>}
               </div>
 
-              <div className="w-1/4 flex flex-col gap-6">
-                {/* AI ACADEMY PANEL */}
-                <div className="bg-[#0d0d0d] border border-zinc-800 p-6 flex-1 flex flex-col">
-                  <h3 className="text-[#00ff41] font-black uppercase text-[10px] tracking-widest mb-4 flex items-center">
-                    <span className="w-2 h-2 bg-[#00ff41] rounded-full mr-2 animate-pulse"></span> Trading Academy AI
-                  </h3>
-                  <div className={`p-5 text-[11px] font-mono leading-relaxed border flex-1 ${!user?.hasActiveSubscription ? 'border-red-900/50 text-red-500 bg-red-900/10' : 'border-zinc-800 text-zinc-400 bg-black'}`}>
-                    {aiAnalysis || "Awaiting Stream... Select an asset to analyze."}
-                  </div>
-                </div>
-
-                {/* TRADE EXECUTION */}
-                <div className="bg-[#0d0d0d] border border-zinc-800 p-6">
+              <div className="w-1/5 bg-[#0d0d0d] border border-zinc-800 p-6 flex flex-col justify-end">
                   {user?.hasActiveSubscription ? (
                     <>
                       <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 block">Exposure (USDT)</label>
                       <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 text-white p-4 font-black outline-none mb-6 focus:border-[#00ff41]" />
-                      <div className="flex gap-4">
-                        <button onClick={() => openPosition('buy')} className="flex-1 bg-[#00ff41] text-black font-black py-4 uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all">LONG</button>
-                        <button onClick={() => openPosition('sell')} className="flex-1 border-2 border-red-500 text-red-500 font-black py-4 uppercase tracking-widest hover:bg-red-900/20 transition-all">SHORT</button>
+                      <div className="flex flex-col gap-4">
+                        <button onClick={() => openPosition('buy')} className="w-full bg-[#00ff41] text-black font-black py-4 uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all">LONG</button>
+                        <button onClick={() => openPosition('sell')} className="w-full border-2 border-red-500 text-red-500 font-black py-4 uppercase tracking-widest hover:bg-red-900/20 transition-all">SHORT</button>
                       </div>
                     </>
                   ) : (
-                    <div className="text-center text-red-500 text-[10px] font-black uppercase py-10 border border-red-900/30 tracking-widest">Execution Locked. Upgrade Required.</div>
+                    <div className="text-center text-red-500 text-[10px] font-black uppercase py-10 border border-red-900/30 tracking-widest">Execution Locked.</div>
                   )}
-                </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === "academy" && (
+            <div className="space-y-10 max-w-5xl">
+                <div className="bg-[#0d0d0d] border border-[#00ff41] p-8 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <span className="text-9xl font-black text-[#00ff41]">AI</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">OpenAI Neural Tutor</h3>
+                    <p className="text-xs text-zinc-400 mb-6 uppercase tracking-widest">Select an asset below to generate a live market lesson.</p>
+                    <div className="flex gap-4 mb-6">
+                        {stocks.map(s => (
+                            <button key={s.symbol} onClick={() => { setSelectedAsset(s); runQuantAI(); }} className="px-6 py-2 border border-zinc-800 hover:border-[#00ff41] text-xs font-black uppercase bg-black">{s.symbol}</button>
+                        ))}
+                    </div>
+                    <div className={`p-6 min-h-[120px] font-mono text-sm leading-relaxed border ${!user?.hasActiveSubscription ? 'border-red-900/50 text-red-500 bg-red-900/10' : 'border-zinc-800 text-[#00ff41] bg-black'}`}>
+                        {aiAnalysis || "Awaiting target selection..."}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="border border-zinc-800 bg-[#0d0d0d] p-8">
+                        <h4 className="text-[#00ff41] font-black uppercase text-xl mb-4">1. The Mechanics</h4>
+                        <ul className="space-y-4 text-sm text-zinc-400">
+                            <li><strong className="text-white">LONG (Buy):</strong> Executing a Long position means you anticipate the asset's price will rise. You buy now to sell higher later.</li>
+                            <li><strong className="text-white">SHORT (Sell):</strong> Executing a Short means you anticipate the asset will drop. You borrow the asset, sell it, and buy it back cheaper.</li>
+                        </ul>
+                    </div>
+                    <div className="border border-zinc-800 bg-[#0d0d0d] p-8">
+                        <h4 className="text-[#00ff41] font-black uppercase text-xl mb-4">2. Technical Analysis</h4>
+                        <ul className="space-y-4 text-sm text-zinc-400">
+                            <li><strong className="text-white">Support & Resistance:</strong> Invisible "floors" and "ceilings" where price historically bounces or rejects.</li>
+                            <li><strong className="text-white">Trendlines:</strong> The market moves in waves. An uptrend is marked by Higher Highs and Higher Lows. Don't fight the trend.</li>
+                        </ul>
+                    </div>
+                    <div className="border border-zinc-800 bg-[#0d0d0d] p-8">
+                        <h4 className="text-[#00ff41] font-black uppercase text-xl mb-4">3. Risk Management</h4>
+                        <ul className="space-y-4 text-sm text-zinc-400">
+                            <li><strong className="text-white">The 1% Rule:</strong> Never risk more than 1-2% of your total capital on a single trade. Preservation of capital is the #1 goal.</li>
+                            <li><strong className="text-white">Stop-Loss (SL):</strong> A non-negotiable exit strategy. Set a hard line where you admit the trade is invalid.</li>
+                        </ul>
+                    </div>
+                    <div className="border border-zinc-800 bg-[#0d0d0d] p-8">
+                        <h4 className="text-[#00ff41] font-black uppercase text-xl mb-4">4. Trading Psychology</h4>
+                        <ul className="space-y-4 text-sm text-zinc-400">
+                            <li><strong className="text-white">FOMO:</strong> Fear of Missing Out. Buying the top of a massive green candle because you feel left behind. This is how retail loses money.</li>
+                            <li><strong className="text-white">Patience:</strong> 90% of trading is waiting for the perfect setup. 10% is execution.</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
           )}
 
@@ -290,13 +350,13 @@ export default function Dashboard() {
                 <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Retail Operator</h3>
                 <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Unlocks Live Trading & Academy AI.</p>
                 <p className="text-4xl font-black text-[#00ff41] mb-10 italic">$20.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
-                <button onClick={() => simulatePurchase("RETAIL")} className="bg-[#00ff41] text-black w-full py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)]">Activate Terminal</button>
+                <button onClick={() => processPurchase("RETAIL")} className="bg-[#00ff41] text-black w-full py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)]">Activate Terminal</button>
               </div>
               <div className="p-12 border-4 border-yellow-500 bg-black hover:shadow-[10px_10px_0_rgba(234,179,8,0.2)] transition-all">
                 <h3 className="text-2xl font-black text-yellow-500 uppercase tracking-tighter">Institutional B2B</h3>
                 <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Generates API Keys for White-label Integration.</p>
                 <p className="text-4xl font-black text-white mb-10 italic">$500.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ License</span></p>
-                <button onClick={() => simulatePurchase("B2B")} className="bg-white text-black w-full py-5 font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors">Generate License</button>
+                <button onClick={() => processPurchase("B2B")} className="bg-white text-black w-full py-5 font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors">Generate License</button>
               </div>
             </div>
           )}

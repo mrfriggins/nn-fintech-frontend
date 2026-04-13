@@ -27,7 +27,7 @@ export default function Dashboard() {
   const router = useRouter();
 
   // ==========================================
-  // AUTHENTICATION STATES
+  // 1. AUTHENTICATION & VERIFICATION STATES
   // ==========================================
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -35,9 +35,11 @@ export default function Dashboard() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [country, setCountry] = useState("Tanzania");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otp, setOtp] = useState("");
 
   // ==========================================
-  // DASHBOARD STATES
+  // 2. CORE DASHBOARD & MARKET STATES
   // ==========================================
   const [user, setUser] = useState<any>(null);
   const [stocks, setStocks] = useState<any[]>([]);
@@ -46,24 +48,24 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Time & Execution State
+  // Time & Execution
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [checkoutTier, setCheckoutTier] = useState<string | null>(null);
   const [txIdInput, setTxIdInput] = useState("");
   
-  // ADVANCED RISK MANAGEMENT STATES
+  // Risk Management
   const [tradeAmount, setTradeAmount] = useState<number>(1000);
   const [tradeDuration, setTradeDuration] = useState<number>(60);
   const [takeProfit, setTakeProfit] = useState<number | "">(""); 
   const [stopLoss, setStopLoss] = useState<number | "">("");
 
-  // Quant AI States
+  // AI Analysis
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // ==========================================
-  // 1. DATA INITIALIZATION & SESSION CHECK
+  // 3. DATA REFRESH & SESSION SECURITY
   // ==========================================
   const fetchData = async () => {
     const token = localStorage.getItem("token");
@@ -75,40 +77,46 @@ export default function Dashboard() {
 
     try {
       const [pRes, mRes] = await Promise.all([
-        fetch(`${API_URL}/api/users/profile`, { headers: { "Authorization": `Bearer ${token}` } }),
-        fetch(`${API_URL}/api/market/stocks`, { headers: { "Authorization": `Bearer ${token}` } }).catch(() => ({ json: () => [] }))
+        fetch(`${API_URL}/api/users/profile`, { 
+            headers: { "Authorization": `Bearer ${token}` } 
+        }),
+        fetch(`${API_URL}/api/market/stocks`, { 
+            headers: { "Authorization": `Bearer ${token}` } 
+        }).catch(() => ({ json: () => [] }))
       ]);
       
-      if (!pRes.ok) throw new Error("Invalid Session");
+      if (!pRes.ok) throw new Error("UNAUTHORIZED_SESSION");
 
       const profile = await pRes.json();
       setUser(profile);
       setIsLoggedIn(true);
       
       let backendData = [];
-      try { backendData = await mRes.json(); } catch(e) {}
+      try { 
+        const json = await mRes.json();
+        backendData = Array.isArray(json) ? json : [];
+      } catch(e) { backendData = []; }
 
-      const demoCommodities = [
-        { symbol: "XAU/USD (GOLD)", price: 2385.40, change: "+1.2%" },
-        { symbol: "XAG/USD (SILVER)", price: 29.10, change: "+0.8%" },
-        { symbol: "WTI CRUDE", price: 82.55, change: "-0.5%" },
-        { symbol: "BRENT CRUDE", price: 86.20, change: "-0.3%" },
-        { symbol: "NATURAL GAS", price: 2.15, change: "+4.1%" },
-        { symbol: "COPPER", price: 4.65, change: "+2.2%" },
-        { symbol: "WHEAT", price: 610.25, change: "-1.1%" }
+      // Dummy High-Liquidity Commodities
+      const dummyAssets = [
+        { symbol: "XAU/USD (GOLD)", price: 2385.40, change: "+1.2%", volatility: 0.001 },
+        { symbol: "WTI CRUDE", price: 82.55, change: "-0.5%", volatility: 0.002 },
+        { symbol: "NATURAL GAS", price: 2.15, change: "+4.1%", volatility: 0.005 }
       ];
 
-      const combinedMarketData = [...backendData, ...demoCommodities];
-      setStocks(prev => prev.length === 0 ? combinedMarketData : prev);
+      const combined = [...backendData, ...dummyAssets];
+      setStocks(prev => prev.length === 0 ? combined : prev);
 
-      if (!selectedAsset && combinedMarketData.length > 0) setSelectedAsset(combinedMarketData[0]);
+      if (!selectedAsset && combined.length > 0) setSelectedAsset(combined[0]);
 
       if (profile.role === "admin") {
-        const aRes = await fetch(`${API_URL}/api/admin/all-transactions`, { headers: { "Authorization": `Bearer ${token}` } });
+        const aRes = await fetch(`${API_URL}/api/admin/all-transactions`, { 
+            headers: { "Authorization": `Bearer ${token}` } 
+        });
         if (aRes.ok) setAdminLogs(await aRes.json());
       }
     } catch (e) { 
-      console.error("SESSION EXPIRED OR LINK FAILURE"); 
+      console.warn("SESSION INVALIDATED");
       localStorage.removeItem("token");
       setIsLoggedIn(false);
     } finally { 
@@ -118,482 +126,375 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const inv = setInterval(fetchData, 10000); 
-    return () => clearInterval(inv);
-  }, []); // eslint-disable-line 
+    const interval = setInterval(fetchData, 15000); 
+    return () => clearInterval(interval);
+  }, []);
 
   // ==========================================
-  // 2. LIVE TICK ENGINE
+  // 4. MARKET SIMULATION ENGINE (CLIENT-SIDE)
   // ==========================================
   useEffect(() => {
     if (stocks.length === 0) return;
-    const tickInterval = setInterval(() => {
+    const tick = setInterval(() => {
       setStocks(prev => prev.map(s => {
-        const volatility = s.price * 0.0005; 
-        const move = (Math.random() - 0.5) * volatility;
-        return { ...s, price: s.price + move, change: `${move >= 0 ? '+' : '-'}${Math.abs((move / s.price) * 100).toFixed(2)}%` };
+        const factor = s.volatility || 0.0005;
+        const move = (Math.random() - 0.5) * (s.price * factor);
+        const newPrice = s.price + move;
+        return { 
+            ...s, 
+            price: newPrice, 
+            change: `${move >= 0 ? '+' : '-'}${Math.abs((move / s.price) * 100).toFixed(2)}%` 
+        };
       }));
     }, 1000);
-    return () => clearInterval(tickInterval);
+    return () => clearInterval(tick);
   }, [stocks]);
 
   useEffect(() => {
-    if (selectedAsset) {
-      const liveAsset = stocks.find(s => s.symbol === selectedAsset.symbol);
-      if (liveAsset) setSelectedAsset(liveAsset);
-    }
-  }, [stocks]); // eslint-disable-line
-
-  useEffect(() => {
-    const clock = setInterval(() => setCurrentTime(Date.now()), 500);
+    const clock = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(clock);
   }, []);
 
   // ==========================================
-  // 3. OMNI-DIRECTIONAL AUTO-LIQUIDATOR
+  // 5. OMNI-DIRECTIONAL RISK PROTECTOR
   // ==========================================
   useEffect(() => {
     if (portfolio.length === 0 || stocks.length === 0) return;
     
-    portfolio.forEach(position => {
-      if (position.isClosing) return;
+    portfolio.forEach(pos => {
+      if (pos.isClosing) return;
+      const live = stocks.find(s => s.symbol === pos.symbol);
+      if (!live) return;
 
-      const liveAsset = stocks.find(s => s.symbol === position.symbol);
-      if (!liveAsset) return;
+      const price = live.price;
+      let reason = null;
 
-      const currentPrice = liveAsset.price;
-      let triggerReason = null;
-
-      if (currentTime >= position.expiresAt) {
-        triggerReason = "TIME EXPIRED";
-      } 
-      else if (position.side === 'buy') {
-        if (position.tp && currentPrice >= position.tp) triggerReason = "TAKE PROFIT HIT";
-        if (position.sl && currentPrice <= position.sl) triggerReason = "STOP LOSS HIT";
-      } 
-      else if (position.side === 'sell') {
-        if (position.tp && currentPrice <= position.tp) triggerReason = "TAKE PROFIT HIT";
-        if (position.sl && currentPrice >= position.sl) triggerReason = "STOP LOSS HIT";
+      if (currentTime >= pos.expiresAt) reason = "EXPIRY REACHED";
+      else if (pos.side === 'buy') {
+        if (pos.tp && price >= pos.tp) reason = "TP TARGET SECURED";
+        if (pos.sl && price <= pos.sl) reason = "SL STOP HIT";
+      } else if (pos.side === 'sell') {
+        if (pos.tp && price <= pos.tp) reason = "TP TARGET SECURED";
+        if (pos.sl && price >= pos.sl) reason = "SL STOP HIT";
       }
 
-      if (triggerReason) {
-        setPortfolio(prev => prev.map(p => p.id === position.id ? { ...p, isClosing: true } : p));
-        liquidatePosition(position.id, triggerReason);
+      if (reason) {
+        setPortfolio(prev => prev.map(p => p.id === pos.id ? { ...p, isClosing: true } : p));
+        liquidatePosition(pos.id, reason);
       }
     });
-  }, [currentTime, portfolio, stocks]); // eslint-disable-line
+  }, [currentTime, portfolio, stocks]);
 
   // ==========================================
-  // 4. QUANT AI ENGINE
+  // 6. QUANT AI ANALYTICS
   // ==========================================
   const runQuantAI = (asset: any) => {
     setSelectedAsset(asset);
     setIsAnalyzing(true);
     setAiAnalysis("");
     
-    const phrases = [
-      `Analyzing ${asset.symbol} order flow... Institutional dark pool accumulation detected. Support solidifying.`,
-      `Volatility expanding on ${asset.symbol}. Set tight stops. Algorithms targeting upper liquidity zones.`,
-      `Macro data indicates supply squeeze for ${asset.symbol}. Hedging recommended. Bias: BULLISH.`,
-      `Warning: Volume anomalies detected in ${asset.symbol}. High probability of a liquidity sweep before continuation.`
+    const insights = [
+      `Analyzing ${asset.symbol} dark pool liquidity... Bullish divergence confirmed on M15.`,
+      `Macro headwind detected for ${asset.symbol}. Resistance at psychological level. Caution advised.`,
+      `Order flow for ${asset.symbol} shows institutional accumulation. High probability of upward sweep.`,
+      `Volatility contraction in ${asset.symbol}. Anticipating breakout. Momentum: NEUTRAL.`
     ];
-    const targetText = phrases[Math.floor(Math.random() * phrases.length)];
+    const text = insights[Math.floor(Math.random() * insights.length)];
     
-    let i = 0;
-    const interval = setInterval(() => {
-      setAiAnalysis(targetText.slice(0, i)); i++;
-      if (i > targetText.length) { clearInterval(interval); setIsAnalyzing(false); }
-    }, 20);
+    let char = 0;
+    const type = setInterval(() => {
+      setAiAnalysis(text.slice(0, char));
+      char++;
+      if (char > text.length) { 
+        clearInterval(type); 
+        setIsAnalyzing(false); 
+      }
+    }, 25);
   };
 
   // ==========================================
-  // 5. TRADE EXECUTION
+  // 7. TRANSACTION & TRADE EXECUTION
   // ==========================================
   const openPosition = async (side: 'buy' | 'sell') => {
     if (!selectedAsset || !user) return;
-    if (user.demoBalance < tradeAmount) return alert("INSUFFICIENT LIQUIDITY");
-    if (tradeDuration < 10) return alert("MINIMUM DURATION IS 10 SECONDS");
+    if (user.demoBalance < tradeAmount) return alert("INSUFFICIENT MARGIN");
 
     try {
       const res = await fetch(`${API_URL}/api/trade/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+        headers: { 
+            "Content-Type": "application/json", 
+            "Authorization": `Bearer ${localStorage.getItem("token")}` 
+        },
         body: JSON.stringify({ symbol: selectedAsset.symbol, amount: tradeAmount, side })
       });
       
       if (res.ok) {
-        const newContract = {
-          id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        const contract = {
+          id: `ORD-${Date.now()}`,
           symbol: selectedAsset.symbol,
-          side: side,
+          side,
           invested: tradeAmount,
           qty: tradeAmount / selectedAsset.price,
           entryPrice: selectedAsset.price,
           expiresAt: Date.now() + (tradeDuration * 1000), 
-          tp: takeProfit ? Number(takeProfit) : null,
-          sl: stopLoss ? Number(stopLoss) : null,
+          tp: takeProfit || null,
+          sl: stopLoss || null,
           isClosing: false
         };
-        
-        setPortfolio(prev => [...prev, newContract]);
-        fetchData(); 
-        
-        setTakeProfit("");
-        setStopLoss("");
+        setPortfolio(prev => [...prev, contract]);
+        fetchData();
+        setTakeProfit(""); setStopLoss("");
       } else {
-        alert("EXECUTION REJECTED.");
+        const errData = await res.json();
+        alert(errData.error || "ORDER REJECTED");
       }
-    } catch (err) { alert("NETWORK ERROR"); }
+    } catch (err) { alert("GATEWAY TIMEOUT"); }
   };
 
-  const liquidatePosition = async (contractId: string, reason = "MANUAL LIQUIDATION") => {
-    const position = portfolio.find(p => p.id === contractId);
-    if (!position) return;
-
-    const closingSide = position.side === 'buy' ? 'sell' : 'buy';
-
+  const liquidatePosition = async (id: string, reason = "MANUAL EXIT") => {
+    const pos = portfolio.find(p => p.id === id);
+    if (!pos) return;
     try {
       const res = await fetch(`${API_URL}/api/trade/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: position.symbol, amount: position.invested, side: closingSide }) 
+        headers: { 
+            "Content-Type": "application/json", 
+            "Authorization": `Bearer ${localStorage.getItem("token")}` 
+        },
+        body: JSON.stringify({ 
+            symbol: pos.symbol, 
+            amount: pos.invested, 
+            side: pos.side === 'buy' ? 'sell' : 'buy' 
+        }) 
       });
-
       if (res.ok) {
-        setPortfolio(prev => prev.filter(p => p.id !== contractId));
+        setPortfolio(prev => prev.filter(p => p.id !== id));
         fetchData(); 
-        alert(`[${position.symbol}] CLOSED: ${reason}`);
+        console.log(`Contract Closed: ${reason}`);
       }
-    } catch (err) { console.error("Liquidation Failed", err); }
-  };
-
-  const autofillRisk = (type: 'long' | 'short') => {
-    if(!selectedAsset) return;
-    if (type === 'long') {
-      setTakeProfit(Number((selectedAsset.price * 1.05).toFixed(2))); 
-      setStopLoss(Number((selectedAsset.price * 0.95).toFixed(2))); 
-    } else {
-      setTakeProfit(Number((selectedAsset.price * 0.95).toFixed(2))); 
-      setStopLoss(Number((selectedAsset.price * 1.05).toFixed(2))); 
-    }
+    } catch (err) { console.error("LIQUIDATION FAILURE"); }
   };
 
   // ==========================================
+  // 8. AUTHENTICATION & HANDSHAKE (ZERO-CRASH)
   // ==========================================
-  // 6. AUTHENTICATION HANDLER (HARDENED)
-  // ==========================================
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [otp, setOtp] = useState("");
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Determine if we are logging in, registering, or verifying OTP
-    let endpoint = "";
-    if (isVerifying) endpoint = "/auth/verify";
-    else endpoint = authMode === "login" ? "/auth/login" : "/auth/register";
-
-    const body = isVerifying 
-      ? { email, otp } 
-      : (authMode === "login" ? { email, password } : { email, password, fullName, country });
+    let endpoint = isVerifying ? "/auth/verify" : (authMode === "login" ? "/auth/login" : "/auth/register");
+    const payload = isVerifying 
+        ? { email, otp } 
+        : (authMode === "login" ? { email, password } : { email, password, fullName, country });
 
     try {
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
       
       const data = await res.json();
 
       if (res.ok) {
         if (endpoint === "/auth/register") {
-          // Move to verification mode instead of logging in
           setIsVerifying(true);
-          alert("ACCESS CODE SENT. Check your email to authorize this profile.");
+          alert("SECURITY: 6-digit code dispatched to your inbox.");
         } else {
-          // Success for Login or Verify
           localStorage.setItem("token", data.token);
           setIsLoggedIn(true);
           window.location.reload(); 
         }
       } else {
-        // Backend returned an error (e.g., 400, 401, 404)
-        alert(data.error || data.message || "UNAUTHORIZED ACCESS");
+        alert(data.error || "ACCESS DENIED");
       }
-    } catch (err) {
-      console.error("GATEWAY ERROR:", err);
-      alert("SERVER UNREACHABLE: Check Backend Status.");
-    }
+    } catch (err) { alert("NETWORK ERROR: Check Backend Port."); }
   };
-  // ==========================================
-  // 7. RENDER LOGIC
-  // ==========================================
 
-  if (loading) return <div className="bg-[#050505] min-h-screen flex items-center justify-center text-[#00ff41] font-black uppercase tracking-widest">Decrypting Ledger...</div>;
-
-  {/* --- VAULT DOOR: RENDER AUTH IF NOT LOGGED IN --- */}
-if (!isLoggedIn) {
-  return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
-      <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 shadow-[0_0_80px_rgba(0,0,0,1)]">
-        <div className="mb-8">
-          <h2 className="text-3xl font-black text-[#00ff41] uppercase italic tracking-tighter leading-none">
-            {isVerifying ? "Authorize Access" : (authMode === "login" ? "Identity Verification" : "Create Operator Profile")}
-          </h2>
-          <div className="h-1 w-20 bg-[#00ff41] mt-2"></div>
-        </div>
-
-        <form onSubmit={handleAuth} className="space-y-4">
-          {isVerifying ? (
-            // --- MODE: OTP VERIFICATION ---
-            <div className="space-y-2">
-              <p className="text-[10px] text-zinc-500 uppercase font-black">Enter 6-Digit Security Code</p>
-              <input 
-                type="text" 
-                placeholder="XXXXXX" 
-                value={otp} 
-                onChange={(e) => setOtp(e.target.value)} 
-                className="w-full bg-black border border-[#00ff41] p-4 text-[#00ff41] outline-none text-center text-xl tracking-[0.5em] font-black" 
-                required 
-              />
-            </div>
-          ) : (
-            // --- MODE: LOGIN / REGISTER ---
-            <>
-              {authMode === "register" && (
-                <>
-                  <input type="text" placeholder="LEGAL FULL NAME" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
-                  <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase cursor-pointer">
-                    {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </>
-              )}
-              <input type="email" placeholder="SECURE EMAIL" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
-              <input type="password" placeholder="ACCESS KEY" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white outline-none focus:border-[#00ff41] text-xs uppercase" required />
-            </>
-          )}
-          
-          <button type="submit" className="w-full bg-[#00ff41] text-black font-black py-4 uppercase hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all tracking-widest mt-4">
-            {isVerifying ? "Confirm Code" : (authMode === "login" ? "Enter Vault" : "Register Credentials")}
-          </button>
-        </form>
-
-        {!isVerifying && (
-          <button onClick={() => setAuthMode(authMode === "login" ? "register" : "login")} className="w-full mt-8 text-[9px] text-zinc-500 uppercase font-black hover:text-[#00ff41] tracking-widest border-t border-zinc-800 pt-6">
-            {authMode === "login" ? "Request Access -> New Account" : "Existing Operator -> Access Vault"}
-          </button>
-        )}
-        
-        {isVerifying && (
-          <button onClick={() => setIsVerifying(false)} className="w-full mt-4 text-[9px] text-red-500 uppercase font-black hover:underline tracking-widest">
-            Back to Login
-          </button>
-        )}
-      </div>
+  if (loading) return (
+    <div className="bg-[#050505] min-h-screen flex items-center justify-center text-[#00ff41] font-mono text-xs uppercase animate-pulse">
+        Initializing NN-Fintech Secure Node...
     </div>
   );
-}
 
-  // --- TERMINAL OPEN: RENDER DASHBOARD IF LOGGED IN ---
+  // ==========================================
+  // 9. UI: AUTHENTICATION GATE
+  // ==========================================
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4 overflow-hidden relative">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,65,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.03)_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+        <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 relative z-10 shadow-[0_0_50px_rgba(0,0,0,1)]">
+          <div className="mb-10 text-center">
+            <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">
+                {isVerifying ? "Authorize" : (authMode === "login" ? "Identity" : "Register")}
+            </h2>
+            <p className="text-[#00ff41] text-[9px] font-black uppercase tracking-[0.3em] mt-1">NN-Fintech Global Vault</p>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-4">
+            {isVerifying ? (
+              <div className="space-y-3">
+                <p className="text-[10px] text-zinc-500 uppercase font-black text-center">Enter Private Access Code</p>
+                <input type="text" placeholder="XXXXXX" value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full bg-black border border-[#00ff41] p-5 text-[#00ff41] text-center text-2xl font-black outline-none shadow-[0_0_15px_rgba(0,255,65,0.1)]" required />
+              </div>
+            ) : (
+              <>
+                {authMode === "register" && (
+                  <>
+                    <input type="text" placeholder="LEGAL FULL NAME" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white text-xs uppercase outline-none focus:border-[#00ff41]" required />
+                    <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white text-xs uppercase outline-none focus:border-[#00ff41]">
+                        {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </>
+                )}
+                <input type="email" placeholder="SECURE EMAIL" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white text-xs uppercase outline-none focus:border-[#00ff41]" required />
+                <input type="password" placeholder="ACCESS KEY" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 p-4 text-white text-xs uppercase outline-none focus:border-[#00ff41]" required />
+              </>
+            )}
+            <button type="submit" className="w-full bg-[#00ff41] text-black font-black py-5 uppercase tracking-widest mt-6 hover:shadow-[0_0_20px_rgba(0,255,65,0.3)] transition-all">
+                {isVerifying ? "Unlock Session" : (authMode === "login" ? "Enter Vault" : "Create Operator")}
+            </button>
+          </form>
+
+          {!isVerifying && (
+            <button onClick={() => setAuthMode(authMode === "login" ? "register" : "login")} className="w-full mt-10 text-[9px] text-zinc-500 uppercase font-black hover:text-[#00ff41] border-t border-zinc-800 pt-8 transition-colors">
+              {authMode === "login" ? "Request New Credentials" : "Existing Operator Login"}
+            </button>
+          )}
+          {isVerifying && (
+            <button onClick={() => setIsVerifying(false)} className="w-full mt-6 text-[9px] text-red-500 uppercase font-black hover:underline tracking-widest">Abort Verification</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 10. UI: MAIN TERMINAL (THE BILLIONAIRE SUITE)
+  // ==========================================
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col overflow-hidden">
       <Ticker stocks={stocks} />
 
       <div className="flex flex-1 overflow-hidden">
-        
-        {/* SIDEBAR NAVIGATION */}
-        <aside className="w-64 bg-[#0d0d0d] border-r border-zinc-800 p-6 flex flex-col shadow-[10px_0_30px_rgba(0,0,0,1)] z-10">
-          <div className="mb-10">
-            <h1 className="text-xl font-black text-[#00ff41] italic tracking-tighter uppercase">NN-Vault</h1>
-            <div className="h-0.5 w-full bg-gradient-to-r from-[#00ff41] to-transparent mt-1"></div>
+        {/* LEFT NAV: THE COMMAND CENTER */}
+        <aside className="w-72 bg-[#0d0d0d] border-r border-zinc-800 p-8 flex flex-col shadow-[10px_0_30px_rgba(0,0,0,1)]">
+          <div className="mb-12">
+            <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase">NN-Fintech</h1>
+            <div className="h-1 w-full bg-gradient-to-r from-[#00ff41] to-transparent mt-2"></div>
           </div>
 
-          <nav className="flex-1 space-y-2">
+          <nav className="flex-1 space-y-3">
             {["overview", "terminal", "licenses"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase transition-all ${
-                  activeTab === tab ? "bg-[#00ff41] text-black shadow-[0_0_15px_rgba(0,255,65,0.3)]" : "text-zinc-500 hover:text-[#00ff41]"
-                }`}
-              >
-                {tab}
-              </button>
+              <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase transition-all ${activeTab === tab ? "bg-[#00ff41] text-black shadow-[0_0_20px_rgba(0,255,65,0.2)]" : "text-zinc-500 hover:text-[#00ff41]"}`}>{tab}</button>
             ))}
             {user?.role === "admin" && (
-              <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-10 text-left px-4 py-3 text-[10px] font-black uppercase transition-all border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white" : "text-red-500 hover:bg-red-900/20"}`}>
-                Watchtower [ADMIN]
-              </button>
+              <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-12 text-left px-5 py-4 text-[10px] font-black uppercase transition-all border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
             )}
           </nav>
 
-          <div className="mt-auto p-4 bg-[#050505] border border-red-900/30 rounded-sm">
-            <p className="text-[9px] text-zinc-600 uppercase font-black mb-1">Active Operator</p>
-            <p className="text-[10px] font-bold truncate text-[#00ff41] mb-4">{user?.email || "SYSTEM_ADMIN"}</p>
-            <button 
-              onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} 
-              className="w-full border border-red-500/50 text-red-500 py-3 text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-[0_0_10px_rgba(220,38,38,0.1)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)]"
-            >
-              Terminate Session
-            </button>
+          <div className="mt-auto p-5 bg-[#050505] border border-zinc-800 rounded-sm">
+            <p className="text-[9px] text-zinc-600 uppercase font-black mb-1 tracking-tighter">Active Operator</p>
+            <p className="text-[11px] font-bold truncate text-[#00ff41] mb-5 uppercase tracking-tighter">{user?.email}</p>
+            <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 py-3 text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
           </div>
         </aside>
 
-        {/* MAIN PANEL */}
-        <main className="flex-1 p-8 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#051505] via-[#0a0a0a] to-[#0a0a0a]">
-          
-          <header className="flex justify-between items-end mb-8 border-b border-zinc-800 pb-6">
-            <h2 className="text-5xl font-black uppercase italic tracking-tighter text-white">{activeTab}</h2>
+        {/* MAIN DISPLAY: REAL-TIME DATA */}
+        <main className="flex-1 p-10 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#051505] via-[#0a0a0a] to-[#0a0a0a]">
+          <header className="flex justify-between items-end mb-12 border-b border-zinc-800 pb-10">
+            <div>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Global Market Access</p>
+                <h2 className="text-6xl font-black uppercase italic tracking-tighter text-white">{activeTab}</h2>
+            </div>
             <div className="text-right">
-              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Simulated Liquidity (USDT)</p>
-              <p className="text-4xl font-black text-[#00ff41] tabular-nums">${user?.demoBalance?.toLocaleString(undefined, {minimumFractionDigits: 2}) || "0.00"}</p>
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Simulated Equity</p>
+              <p className="text-5xl font-black text-[#00ff41] tabular-nums tracking-tighter">${user?.demoBalance?.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
             </div>
           </header>
 
-          {/* TAB: OVERVIEW */}
           {activeTab === "overview" && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-500">
-              {stocks.slice(0,6).map(s => (
-                <div key={s.symbol} className="bg-[#0f0f0f] border border-zinc-800 p-8 hover:border-[#00ff41] transition-colors cursor-pointer" onClick={() => {runQuantAI(s); setActiveTab("terminal");}}>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-xs font-black text-zinc-400 uppercase">{s.symbol}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {stocks.map(s => (
+                <div key={s.symbol} onClick={() => {runQuantAI(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-8 hover:border-[#00ff41] transition-all cursor-pointer group">
+                  <div className="flex justify-between mb-4">
+                    <span className="text-xs font-black text-zinc-400 uppercase group-hover:text-white transition-colors">{s.symbol}</span>
                     <span className={`text-[10px] font-black ${s.change.includes('+') ? 'text-green-500' : 'text-red-500'}`}>{s.change}</span>
                   </div>
-                  <p className="text-3xl font-black text-white">${s.price.toFixed(2)}</p>
+                  <p className="text-4xl font-black text-white tracking-tighter tabular-nums">${s.price.toFixed(2)}</p>
                 </div>
               ))}
             </div>
           )}
 
-          {/* TAB: TRADING TERMINAL */}
           {activeTab === "terminal" && (
-            <div className="flex gap-6 h-[750px] animate-in slide-in-from-bottom-4">
-              
-              <div className="w-1/4 bg-[#0d0d0d] border border-zinc-800 overflow-y-auto">
-                <div className="p-4 bg-black border-b border-zinc-800 text-[10px] font-black uppercase text-zinc-500 sticky top-0 z-10">Live Markets</div>
+            <div className="flex gap-10 h-[800px]">
+              <div className="w-1/4 bg-[#0d0d0d] border border-zinc-800 overflow-y-auto custom-scrollbar">
+                <div className="p-5 bg-black border-b border-zinc-800 text-[10px] font-black uppercase text-zinc-500 sticky top-0 z-10">Global Liquidity</div>
                 {stocks.map(s => (
-                  <div key={s.symbol} onClick={() => runQuantAI(s)} className={`p-4 border-b border-zinc-800 cursor-pointer flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : 'hover:bg-zinc-900'}`}>
-                    <p className="font-black text-white text-[11px]">{s.symbol}</p>
-                    <p className={`font-mono text-xs font-black transition-colors duration-300 ${s.change.includes('+') ? 'text-green-400' : 'text-red-400'}`}>${s.price.toFixed(2)}</p>
+                  <div key={s.symbol} onClick={() => runQuantAI(s)} className={`p-5 border-b border-zinc-800 cursor-pointer flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-8 border-l-[#00ff41]' : 'hover:bg-zinc-900'}`}>
+                    <p className="font-black text-white text-[12px] uppercase">{s.symbol}</p>
+                    <p className={`font-mono text-xs font-black ${s.change.includes('+') ? 'text-green-400' : 'text-red-400'}`}>${s.price.toFixed(2)}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="w-2/4 flex flex-col gap-6">
-                <div className="bg-[#0d0d0d] border border-zinc-800 p-1 relative min-h-[300px]">
-                  {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <div className="text-zinc-600 flex items-center justify-center h-full text-xs font-black">SELECT ASSET</div>}
+              <div className="w-2/4 flex flex-col gap-8">
+                <div className="bg-[#0d0d0d] border border-zinc-800 p-1 flex-1 relative">
+                  {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <div className="text-zinc-700 flex items-center justify-center h-full text-xs font-black uppercase tracking-widest">Connect Asset To Stream...</div>}
                 </div>
 
-                <div className="flex-1 bg-[#0d0d0d] border border-zinc-800 overflow-y-auto">
-                   <div className="p-3 bg-black text-[10px] font-black uppercase text-zinc-500 sticky top-0 border-b border-zinc-800 z-10 flex justify-between">
-                     <span>Active Contracts</span>
-                     <span>{portfolio.length} Open</span>
+                <div className="h-64 bg-[#0d0d0d] border border-zinc-800 overflow-y-auto">
+                   <div className="p-4 bg-black text-[10px] font-black uppercase text-zinc-500 sticky top-0 border-b border-zinc-800 z-10 flex justify-between">
+                     <span>Open Positions</span>
+                     <span className="text-[#00ff41]">{portfolio.length} ACTIVE</span>
                    </div>
-                   <table className="w-full text-left text-[10px]">
-                     <thead>
-                       <tr className="text-zinc-600 border-b border-zinc-800">
-                         <th className="p-3">ASSET</th>
-                         <th className="p-3">RISK (TP/SL)</th>
-                         <th className="p-3">TIME LEFT</th>
-                         <th className="p-3 text-right">ACTION</th>
-                       </tr>
-                     </thead>
+                   <table className="w-full text-left text-[11px]">
+                     <thead><tr className="text-zinc-600 border-b border-zinc-800/50 uppercase"><th className="p-4">Asset</th><th className="p-4 text-center">Exposure</th><th className="p-4 text-right">Action</th></tr></thead>
                      <tbody>
-                       {portfolio.length === 0 ? (
-                         <tr><td colSpan={4} className="p-6 text-center text-zinc-600 uppercase font-black">No Active Contracts</td></tr>
-                       ) : portfolio.map((p) => {
-                         const liveAsset = stocks.find(s => s.symbol === p.symbol);
-                         const currentAssetPrice = liveAsset ? liveAsset.price : p.entryPrice;
-                         const currentValue = p.qty * currentAssetPrice;
-                         
-                         const pnl = p.side === 'buy' ? currentValue - p.invested : p.invested - currentValue;
-                         
-                         const secondsLeft = Math.max(0, Math.floor((p.expiresAt - currentTime) / 1000));
-                         const timeColor = secondsLeft < 10 ? 'text-red-500 animate-pulse' : 'text-yellow-500';
-
-                         return (
-                           <tr key={p.id} className="border-b border-zinc-800/50 hover:bg-zinc-900">
-                             <td className="p-3">
-                               <p className="font-bold text-white flex items-center gap-2">
-                                 {p.symbol}
-                                 <span className={`text-[8px] px-1 py-0.5 rounded-sm ${p.side === 'buy' ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'bg-red-500/20 text-red-500'}`}>
-                                   {p.side.toUpperCase()}
-                                 </span>
-                               </p>
-                               <p className={`text-[9px] ${pnl >= 0 ? 'text-[#00ff41]' : 'text-red-500'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)} USDT</p>
-                             </td>
-                             <td className="p-3 font-mono text-[9px] text-zinc-400">
-                               <span className="text-green-500">TP: {p.tp || 'N/A'}</span><br/>
-                               <span className="text-red-500">SL: {p.sl || 'N/A'}</span>
-                             </td>
-                             <td className={`p-3 font-black tabular-nums ${timeColor}`}>{secondsLeft}s</td>
-                             <td className="p-3 text-right">
-                               <button 
-                                 onClick={() => liquidatePosition(p.id, "FORCE CLOSE")}
-                                 disabled={p.isClosing}
-                                 className="bg-red-900/40 border border-red-500 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1 font-black transition-colors shadow-[0_0_10px_rgba(220,38,38,0.2)]"
-                               >
-                                 {p.isClosing ? "CLOSING..." : "CLOSE"}
-                               </button>
-                             </td>
-                           </tr>
-                         );
-                       })}
+                       {portfolio.map(p => (
+                         <tr key={p.id} className="border-b border-zinc-900/50 hover:bg-zinc-900 transition-colors">
+                           <td className="p-4"><p className="font-bold text-white text-[12px]">{p.symbol}</p><p className={`text-[9px] uppercase font-black ${p.side === 'buy' ? 'text-[#00ff41]' : 'text-red-500'}`}>{p.side}</p></td>
+                           <td className="p-4 text-center font-black tabular-nums tracking-tighter">${p.invested.toLocaleString()}</td>
+                           <td className="p-4 text-right"><button onClick={() => liquidatePosition(p.id)} disabled={p.isClosing} className="bg-red-900/30 border border-red-500 text-red-500 px-4 py-2 font-black text-[10px] uppercase transition-all hover:bg-red-600 hover:text-white">{p.isClosing ? "Closing..." : "Exit"}</button></td>
+                         </tr>
+                       ))}
                      </tbody>
                    </table>
                 </div>
               </div>
 
-              <div className="w-1/4 flex flex-col gap-4">
-                <div className="bg-[#0d0d0d] border border-zinc-800 p-4 relative overflow-hidden">
-                  <h3 className="text-[#00ff41] font-black uppercase text-[10px] tracking-widest mb-3 flex items-center"><span className="w-2 h-2 bg-[#00ff41] rounded-full mr-2 animate-pulse"></span> AI Analysis</h3>
-                  <div className="bg-black border border-zinc-800 p-3 min-h-[90px] font-mono text-[10px] text-zinc-300 shadow-inner">{aiAnalysis}</div>
+              <div className="w-1/4 flex flex-col gap-6">
+                <div className="bg-[#0d0d0d] border border-zinc-800 p-6">
+                  <h3 className="text-[#00ff41] font-black uppercase text-[10px] tracking-widest mb-4 flex items-center"><span className="w-2 h-2 bg-[#00ff41] rounded-full mr-2 animate-pulse"></span> Quant AI Core</h3>
+                  <div className="bg-black border border-zinc-800 p-5 min-h-[120px] font-mono text-[11px] text-zinc-400 shadow-inner italic leading-relaxed">{aiAnalysis || "Awaiting Data Stream..."}</div>
                 </div>
 
-                <div className="flex-1 bg-[#0d0d0d] border border-zinc-800 p-6 flex flex-col">
-                  <h3 className="text-white font-black uppercase text-sm mb-4 border-b border-zinc-800 pb-2">Order Entry: <span className="text-[#00ff41]">{selectedAsset?.symbol}</span></h3>
-                  
+                <div className="flex-1 bg-[#0d0d0d] border border-zinc-800 p-8">
                   {!user?.hasActiveSubscription ? (
-                    <div className="bg-red-900/20 border border-red-500/50 p-4 text-center mt-auto mb-auto">
-                      <p className="text-red-400 text-[10px] font-black uppercase">Execution Locked.</p>
-                      <button onClick={() => setActiveTab("licenses")} className="mt-2 text-[10px] font-black bg-red-600 text-white px-4 py-2 hover:bg-red-500">Go to Licenses</button>
+                    <div className="h-full flex flex-col items-center justify-center text-center">
+                      <p className="text-red-500 text-xs font-black uppercase mb-4 tracking-[0.2em]">Execution Access Restricted</p>
+                      <button onClick={() => setActiveTab("licenses")} className="text-[10px] font-black bg-red-600 text-white px-8 py-4 uppercase tracking-widest hover:bg-red-500">Acquire License</button>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-4">
-                      {/* TRADE AMOUNT */}
-                      <div>
-                        <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block">Trade Size (USDT)</label>
-                        <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 text-white p-2 font-mono outline-none focus:border-[#00ff41]" />
+                    <div className="flex flex-col h-full gap-6">
+                      <div className="flex flex-col gap-4">
+                        <label className="text-[10px] font-black text-zinc-600 uppercase">Risk Value (USDT)</label>
+                        <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 text-white p-4 font-mono font-black text-lg outline-none focus:border-[#00ff41]" />
                       </div>
-
-                      {/* DURATION */}
-                      <div>
-                        <label className="text-[10px] font-black text-zinc-500 uppercase mb-1 block">Expiry Duration (Seconds)</label>
-                        <input type="number" value={tradeDuration} onChange={(e) => setTradeDuration(Number(e.target.value))} placeholder="60" className="w-full bg-black border border-zinc-800 text-white p-2 font-mono outline-none focus:border-[#00ff41]" />
-                      </div>
-
-                      {/* RISK MANAGEMENT: TP & SL */}
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px] font-black text-green-500 uppercase mb-1 block">Take Profit</label>
-                          <input type="number" placeholder="Optional" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value !== "" ? Number(e.target.value) : "")} className="w-full bg-black border border-green-900/50 text-green-400 p-2 font-mono outline-none focus:border-green-500 text-[10px]" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                           <label className="text-[9px] font-black text-green-700 uppercase">TP-Zone</label>
+                           <input type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value === "" ? "" : Number(e.target.value))} className="w-full bg-black border border-green-900/40 text-green-500 p-3 text-xs outline-none" />
                         </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] font-black text-red-500 uppercase mb-1 block">Stop Loss</label>
-                          <input type="number" placeholder="Optional" value={stopLoss} onChange={(e) => setStopLoss(e.target.value !== "" ? Number(e.target.value) : "")} className="w-full bg-black border border-red-900/50 text-red-400 p-2 font-mono outline-none focus:border-red-500 text-[10px]" />
+                        <div className="space-y-2">
+                           <label className="text-[9px] font-black text-red-700 uppercase">SL-Zone</label>
+                           <input type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value === "" ? "" : Number(e.target.value))} className="w-full bg-black border border-red-900/40 text-red-500 p-3 text-xs outline-none" />
                         </div>
                       </div>
-                      
-                      <div className="flex justify-between">
-                        <button onClick={() => autofillRisk('long')} className="text-[9px] text-zinc-500 hover:text-[#00ff41] font-black tracking-widest uppercase transition-colors">Auto-fill Long</button>
-                        <button onClick={() => autofillRisk('short')} className="text-[9px] text-zinc-500 hover:text-red-500 font-black tracking-widest uppercase transition-colors">Auto-fill Short</button>
-                      </div>
-
-                      {/* OMNI-DIRECTIONAL EXECUTION BUTTONS */}
-                      <div className="mt-auto pt-4 border-t border-zinc-800 flex gap-4">
-                        <button onClick={() => openPosition('buy')} className="flex-1 bg-[#00ff41] text-black font-black uppercase p-3 hover:shadow-[0_0_15px_rgba(0,255,65,0.4)] transition-all">LONG</button>
-                        <button onClick={() => openPosition('sell')} className="flex-1 border border-red-500 text-red-500 font-black uppercase p-3 hover:bg-red-900/20 transition-all shadow-[0_0_10px_rgba(220,38,38,0.1)]">SHORT</button>
+                      <div className="mt-auto space-y-4 pt-10 border-t border-zinc-900">
+                        <button onClick={() => openPosition('buy')} className="w-full bg-[#00ff41] text-black font-black py-6 uppercase tracking-[0.3em] hover:shadow-[0_0_30px_rgba(0,255,65,0.4)] transition-all">LONG</button>
+                        <button onClick={() => openPosition('sell')} className="w-full border-2 border-red-500 text-red-500 font-black py-6 uppercase tracking-[0.3em] hover:bg-red-900/20">SHORT</button>
                       </div>
                     </div>
                   )}
@@ -602,79 +503,79 @@ if (!isLoggedIn) {
             </div>
           )}
 
-          {/* TAB: LICENSES */}
           {activeTab === "licenses" && (
-            <div className="max-w-4xl animate-in slide-in-from-bottom-4">
-              <p className="text-zinc-400 text-sm font-bold mb-8">Purchase an institutional license to unlock the Quant AI and live execution engines.</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className={`p-8 border-2 transition-all ${user?.hasActiveSubscription && !user?.b2bKeys?.length ? 'border-[#00ff41] bg-[#00ff41]/5' : 'border-zinc-800 bg-[#0d0d0d]'}`}>
-                  <h3 className="text-2xl font-black uppercase mb-2 text-white">Retail Terminal</h3>
-                  <p className="text-3xl font-black text-[#00ff41] mb-6">$20.00</p>
-                  <ul className="text-xs text-zinc-400 space-y-3 font-bold mb-8">
-                    <li>✓ Live Market Data</li>
-                    <li>✓ Simulated Execution</li>
-                    <li>✓ Basic AI Analysis</li>
-                  </ul>
-                  {user?.hasActiveSubscription ? (
-                    <button disabled className="w-full border border-[#00ff41] text-[#00ff41] py-3 font-black uppercase opacity-50">Active</button>
-                  ) : (
-                    <button onClick={() => setCheckoutTier("RETAIL")} className="w-full bg-[#00ff41] text-black py-3 font-black uppercase hover:shadow-[0_0_15px_rgba(0,255,65,0.4)]">Purchase via Crypto</button>
-                  )}
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl animate-in fade-in slide-in-from-bottom-6">
+              <div className="p-12 border border-zinc-800 bg-[#0d0d0d] hover:border-[#00ff41] transition-all group relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 font-black text-[10px] text-zinc-800 uppercase italic">Retail_v2.0</div>
+                <h3 className="text-3xl font-black uppercase text-white mb-4">Market Operator</h3>
+                <p className="text-4xl font-black text-[#00ff41] mb-10 tracking-tighter italic">$20.00 <span className="text-xs text-zinc-600 not-italic uppercase tracking-widest">/ One-time</span></p>
+                <ul className="text-[11px] text-zinc-500 font-black uppercase space-y-4 mb-12">
+                   <li className="flex items-center gap-3"><span className="w-1.5 h-1.5 bg-[#00ff41]"></span> Unlimited Simulated Trading</li>
+                   <li className="flex items-center gap-3"><span className="w-1.5 h-1.5 bg-[#00ff41]"></span> Standard AI Quant Core</li>
+                   <li className="flex items-center gap-3"><span className="w-1.5 h-1.5 bg-[#00ff41]"></span> Global Market Ticker Feed</li>
+                </ul>
+                <button onClick={() => setCheckoutTier("RETAIL")} className="w-full bg-[#00ff41] text-black font-black py-5 uppercase tracking-widest group-hover:shadow-[0_0_25px_rgba(0,255,65,0.4)]">Activate Terminal</button>
+              </div>
 
-                <div className={`p-8 border-2 transition-all ${user?.b2bKeys?.length ? 'border-yellow-400 bg-yellow-400/5' : 'border-zinc-800 bg-black shadow-[10px_10px_0_#00ff41]'}`}>
-                  <h3 className="text-2xl font-black uppercase mb-2 text-yellow-400">Enterprise B2B</h3>
-                  <p className="text-3xl font-black text-white mb-6">$500.00</p>
-                  <ul className="text-xs text-zinc-400 space-y-3 font-bold mb-8">
-                    <li>✓ All Retail Features</li>
-                    <li>✓ API Key Generation</li>
-                    <li>✓ White-label Permissions</li>
-                  </ul>
-                  {user?.b2bKeys?.length ? (
-                    <div className="bg-yellow-400 text-black text-center py-3 font-black uppercase">Enterprise Active</div>
-                  ) : (
-                    <button onClick={() => setCheckoutTier("B2B")} className="w-full bg-white text-black py-3 font-black uppercase hover:bg-yellow-400">Purchase License</button>
-                  )}
-                </div>
+              <div className="p-12 border-4 border-yellow-500 bg-black relative shadow-[15px_15px_0_rgba(234,179,8,0.2)]">
+                <div className="absolute top-0 right-0 p-4 font-black text-[10px] text-yellow-600 uppercase italic">Enterprise_B2B</div>
+                <h3 className="text-3xl font-black uppercase text-yellow-500 mb-4 tracking-widest">Institutional</h3>
+                <p className="text-4xl font-black text-white mb-10 tracking-tighter italic">$500.00 <span className="text-xs text-zinc-600 not-italic uppercase tracking-widest">/ License</span></p>
+                <ul className="text-[11px] text-zinc-400 font-black uppercase space-y-4 mb-12">
+                   <li className="flex items-center gap-3"><span className="w-1.5 h-1.5 bg-yellow-500"></span> API Key Gen (Quant Webhooks)</li>
+                   <li className="flex items-center gap-3"><span className="w-1.5 h-1.5 bg-yellow-500"></span> Advanced Dark Pool Sentiment</li>
+                   <li className="flex items-center gap-3"><span className="w-1.5 h-1.5 bg-yellow-500"></span> Full Admin Watchtower Access</li>
+                </ul>
+                <button onClick={() => setCheckoutTier("B2B")} className="w-full bg-white text-black font-black py-5 uppercase tracking-widest hover:bg-yellow-500 transition-colors">Generate License</button>
               </div>
             </div>
           )}
 
-          {/* ADMIN WATCHTOWER */}
           {activeTab === "watchtower" && (
-             <div className="border border-red-900/50 bg-black animate-in fade-in">
-              <div className="bg-red-900/20 p-4 border-b border-red-900/50 flex justify-between">
-                <span className="text-red-500 text-xs font-black uppercase">Admin Master Ledger</span>
-                <span className="text-red-500 text-[10px] animate-pulse">● LIVE</span>
+            <div className="border border-red-900/50 bg-black overflow-hidden shadow-[0_0_40px_rgba(220,38,38,0.1)]">
+              <div className="p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center">
+                <h4 className="text-red-500 text-xs font-black uppercase tracking-widest">System Activity Protocol</h4>
+                <div className="flex gap-4">
+                    <span className="text-red-600 text-[10px] font-black uppercase">Users: {adminLogs.length}</span>
+                    <span className="text-red-500 text-[10px] font-black animate-pulse uppercase italic">Security_Active</span>
+                </div>
               </div>
-              <table className="w-full text-left text-[11px]">
-                <thead>
-                  <tr className="text-zinc-600 border-b border-zinc-900"><th className="p-4">USER</th><th className="p-4">EVENT</th><th className="p-4 text-right">VALUE</th></tr>
-                </thead>
+              <table className="w-full text-left text-[11px] border-collapse">
+                <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-900"><th className="p-6">Operator Email</th><th className="p-6">Internal ID</th><th className="p-6 text-right">Value (USDT)</th></tr></thead>
                 <tbody>
                   {adminLogs.map((log, i) => (
-                    <tr key={i} className="border-b border-zinc-900/50"><td className="p-4 font-bold text-white">{log.userEmail}</td><td className="p-4 uppercase text-zinc-400">{log.type}</td><td className={`p-4 text-right font-black ${log.amount < 0 ? 'text-zinc-500' : 'text-[#00ff41]'}`}>{log.amount}</td></tr>
+                    <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10 transition-colors">
+                      <td className="p-6 font-bold text-white uppercase">{log.userEmail}</td>
+                      <td className="p-6 text-zinc-500 font-mono text-[9px] uppercase tracking-tighter">{log.type}</td>
+                      <td className={`p-6 text-right font-black tabular-nums ${log.amount < 0 ? 'text-zinc-600' : 'text-[#00ff41]'}`}>{log.amount?.toFixed(2)}</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-
         </main>
       </div>
-      
-      {/* GLOBAL MODAL: CRYPTO CHECKOUT */}
+
+      {/* MODAL: CRYPTO VAULT AUTHORIZATION */}
       {checkoutTier && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
-          <div className="bg-[#0c0c0c] border border-[#00ff41] p-10 max-w-lg w-full">
-            <h2 className="text-2xl font-black uppercase mb-6 italic text-[#00ff41]">Crypto Gateway</h2>
-            <p className="text-[10px] font-bold mb-2 text-zinc-500 uppercase">Transfer {checkoutTier === 'B2B' ? '$500' : '$20'} USDT (Polygon) to:</p>
-            <div className="bg-black p-4 border border-zinc-800 text-[11px] mb-8 font-black text-white select-all">0xYourPolygonWalletAddressHere</div>
-            <input type="text" placeholder="PASTE TXID" value={txIdInput} onChange={(e) => setTxIdInput(e.target.value)} className="w-full p-4 border border-zinc-800 mb-8 font-black uppercase bg-black text-[#00ff41] outline-none focus:border-[#00ff41]" />
-            <div className="flex gap-4">
-              <button onClick={() => setCheckoutTier(null)} className="flex-1 border border-zinc-800 py-4 font-black uppercase text-[10px] hover:text-red-500">Cancel</button>
-              <button className="flex-1 bg-[#00ff41] text-black py-4 font-black uppercase text-[10px]">Verify TxID</button>
+        <div className="fixed inset-0 bg-black/98 flex items-center justify-center z-[100] p-6 backdrop-blur-xl">
+          <div className="bg-[#0c0c0c] border border-[#00ff41] p-12 max-w-xl w-full shadow-[0_0_100px_rgba(0,255,65,0.2)]">
+            <h2 className="text-3xl font-black uppercase mb-8 italic text-[#00ff41] tracking-tighter">Vault Verification</h2>
+            <div className="mb-10">
+              <p className="text-[10px] font-bold mb-3 text-zinc-600 uppercase tracking-widest">Target Asset: USDT (POLYGON)</p>
+              <p className="text-[10px] font-bold mb-3 text-zinc-600 uppercase tracking-widest">Expected Value: ${checkoutTier === 'B2B' ? '500.00' : '20.00'}</p>
+              <div className="bg-black p-5 border border-zinc-900 text-[11px] font-black text-[#00ff41] select-all break-all shadow-inner">0xYourPolygonWalletAddressHere</div>
+            </div>
+            <div className="space-y-6">
+                <div className="space-y-2">
+                    <label className="text-[9px] font-black text-zinc-700 uppercase">Input Blockchain Transaction Hash (TxID)</label>
+                    <input type="text" placeholder="0X..." value={txIdInput} onChange={(e) => setTxIdInput(e.target.value)} className="w-full p-5 border border-zinc-900 font-black uppercase bg-black text-white text-xs outline-none focus:border-[#00ff41] tracking-tighter" />
+                </div>
+                <div className="flex gap-5">
+                    <button onClick={() => setCheckoutTier(null)} className="flex-1 border border-zinc-800 py-5 font-black uppercase text-[10px] text-zinc-500 hover:text-white transition-colors">Abort</button>
+                    <button className="flex-1 bg-[#00ff41] text-black py-5 font-black uppercase text-[10px] hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all">Verify Transaction</button>
+                </div>
             </div>
           </div>
         </div>

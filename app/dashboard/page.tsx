@@ -237,7 +237,7 @@ export default function Dashboard() {
   // 7. AUTHENTICATION & OTP HANDSHAKE
   // ==========================================
   const handleAuth = async (e: React.BaseSyntheticEvent) => {
-  e.preventDefault();
+    e.preventDefault();
     
     let endpoint = isVerifying ? "/auth/verify" : (authMode === "login" ? "/auth/login" : "/auth/register");
     const body = isVerifying 
@@ -253,7 +253,7 @@ export default function Dashboard() {
       
       const data = await res.json();
 
-      // FIXED: Specifically check for 201 Created for Registration
+      // SPECIFIC CHECK FOR 201 CREATED REGISTRATION
       if (res.status === 201) {
         setIsVerifying(true);
         alert("AUTHORIZATION REQUIRED: Check your email for the 6-digit access code.");
@@ -309,17 +309,6 @@ export default function Dashboard() {
         alert("EXECUTION REJECTED.");
       }
     } catch (err) { alert("NETWORK_ERROR"); }
-  };
-
-  const autofillRisk = (type: 'long' | 'short') => {
-    if(!selectedAsset) return;
-    if (type === 'long') {
-      setTakeProfit(Number((selectedAsset.price * 1.05).toFixed(2))); 
-      setStopLoss(Number((selectedAsset.price * 0.95).toFixed(2))); 
-    } else {
-      setTakeProfit(Number((selectedAsset.price * 0.95).toFixed(2))); 
-      setStopLoss(Number((selectedAsset.price * 1.05).toFixed(2))); 
-    }
   };
 
   // ==========================================
@@ -436,7 +425,7 @@ export default function Dashboard() {
           {activeTab === "terminal" && (
             <div className="flex gap-10 h-[800px]">
               <div className="w-1/4 bg-[#0d0d0d] border border-zinc-800 overflow-y-auto">
-                <div className="p-5 bg-black border-b border-zinc-800 text-[10px] font-black uppercase text-zinc-500 sticky top-0 z-10">Global Liquidity</div>
+                <div className="p-5 bg-black border-b border-zinc-800 text-[10px] font-black uppercase text-zinc-500 sticky top-0 z-10">Live Assets</div>
                 {stocks.map(s => (
                   <div key={s.symbol} onClick={() => runQuantAI(s)} className={`p-5 border-b border-zinc-800 cursor-pointer flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-8 border-l-[#00ff41]' : 'hover:bg-zinc-900'}`}>
                     <p className="font-black text-white text-[12px] uppercase">{s.symbol}</p>
@@ -561,7 +550,7 @@ export default function Dashboard() {
                 <input type="text" placeholder="PASTE TXID (0X...)" value={txIdInput} onChange={(e) => setTxIdInput(e.target.value)} className="w-full p-5 border border-zinc-900 font-black uppercase bg-black text-white text-xs outline-none focus:border-[#00ff41] tracking-tighter" />
                 <div className="flex gap-5">
                     <button onClick={() => setCheckoutTier(null)} className="flex-1 border border-zinc-800 py-5 font-black uppercase text-[10px] text-zinc-500 hover:text-white transition-colors">Abort</button>
-                    <button className="flex-1 bg-[#00ff41] text-black py-5 font-black uppercase text-[10px]">Verify TxID</button>
+                    <button className="flex-1 bg-[#00ff41] text-black py-5 font-black uppercase text-[10px] hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] transition-all">Verify TxID</button>
                 </div>
             </div>
           </div>

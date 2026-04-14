@@ -6,7 +6,7 @@ import CandleChart from "../components/CandleChart";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 const countries = [
-  "Afghanistan", "Tanzania", "United States", "United Kingdom", "United Arab Emirates", "China", "Singapore", "Switzerland" // Truncated for brevity, add your full list back
+  "Afghanistan", "Tanzania", "United States", "United Kingdom", "United Arab Emirates", "China", "Singapore", "Switzerland" 
 ];
 
 export default function Dashboard() {
@@ -33,6 +33,10 @@ export default function Dashboard() {
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Checkout States
+  const [checkoutInfo, setCheckoutInfo] = useState<any>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   const fetchData = async () => {
     const token = localStorage.getItem("token");
     if (!token) { setIsLoggedIn(false); setLoading(false); return; }
@@ -44,7 +48,6 @@ export default function Dashboard() {
       setUser(profile);
       setIsLoggedIn(true);
       
-      // Only fetch stream if they have a tier
       if (profile.subscriptionTier !== 'none') {
         const mRes = await fetch(`${API_URL}/api/market/stream`, { headers: { "Authorization": `Bearer ${token}` } });
         if (mRes.ok) {
@@ -76,7 +79,7 @@ export default function Dashboard() {
 
       if (res.status === 201) {
         setIsVerifying(true);
-        alert("SECURITY KEY DISPATCHED. Check your email.");
+        alert("SECURITY KEY DISPATCHED. Check your email or server console.");
         return;
       }
       if (res.ok && data.token) {
@@ -130,10 +133,30 @@ export default function Dashboard() {
     }
   };
 
+  const processPurchase = async (tier: string) => {
+    setIsCheckingOut(true);
+    try {
+        const res = await fetch(`${API_URL}/api/payment/create-invoice`, {
+            method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+            body: JSON.stringify({ tier })
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+            setCheckoutInfo(data);
+        } else {
+            alert(`CHECKOUT FAILED: ${data.error}`);
+        }
+    } catch(e) {
+        alert("GATEWAY ERROR: Unable to reach billing server.");
+    } finally {
+        setIsCheckingOut(false);
+    }
+  };
+
   if (loading) return <div className="bg-black min-h-screen text-[#00ff41] font-mono flex items-center justify-center animate-pulse tracking-[0.5em] text-xs uppercase">Initializing Secure Node...</div>;
 
   if (!isLoggedIn) {
-    // Auth UI remains the same
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
         <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 shadow-2xl">
@@ -177,7 +200,7 @@ export default function Dashboard() {
             <button onClick={() => setActiveTab("overview")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "overview" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Overview</button>
             <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Trading Terminal</button>
             <button onClick={() => setActiveTab("academy")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "academy" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>AI Academy</button>
-            <button onClick={() => setActiveTab("licenses")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
+            <button onClick={() => { setActiveTab("licenses"); setCheckoutInfo(null); }} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
           </nav>
           <div className="mt-auto pt-5 border-t border-zinc-800">
              <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
@@ -282,19 +305,47 @@ export default function Dashboard() {
           )}
 
           {activeTab === "licenses" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-              <div className="p-12 border border-zinc-800 bg-[#0d0d0d] hover:border-[#00ff41] transition-all">
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Retail Operator</h3>
-                <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Unlocks Live Trading & Academy AI.</p>
-                <p className="text-4xl font-black text-[#00ff41] mb-10 italic">$20.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
-                <button onClick={() => alert("Payment Gateway Pending Setup.")} className="bg-[#00ff41] text-black w-full py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)]">Buy License</button>
-              </div>
-              <div className="p-12 border-4 border-yellow-500 bg-black hover:shadow-[10px_10px_0_rgba(234,179,8,0.2)] transition-all">
-                <h3 className="text-2xl font-black text-yellow-500 uppercase tracking-tighter">Institutional B2B</h3>
-                <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Bring-Your-Own-Key. Unlocks specific server API endpoints.</p>
-                <p className="text-4xl font-black text-white mb-10 italic">$500.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
-                <button onClick={() => alert("Contact System Administrator to provision B2B.")} className="bg-white text-black w-full py-5 font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors">Request Node</button>
-              </div>
+            <div className="max-w-5xl">
+                {!checkoutInfo ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                      <div className="p-12 border border-zinc-800 bg-[#0d0d0d] hover:border-[#00ff41] transition-all">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Retail Operator</h3>
+                        <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Unlocks Live Trading & Academy AI.</p>
+                        <p className="text-4xl font-black text-[#00ff41] mb-10 italic">$20.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
+                        <button onClick={() => processPurchase("RETAIL")} disabled={isCheckingOut} className="bg-[#00ff41] text-black w-full py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] disabled:opacity-50">
+                            {isCheckingOut ? "Connecting..." : "Buy License"}
+                        </button>
+                      </div>
+                      <div className="p-12 border-4 border-yellow-500 bg-black hover:shadow-[10px_10px_0_rgba(234,179,8,0.2)] transition-all">
+                        <h3 className="text-2xl font-black text-yellow-500 uppercase tracking-tighter">Institutional B2B</h3>
+                        <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Bring-Your-Own-Key. Unlocks specific server API endpoints.</p>
+                        <p className="text-4xl font-black text-white mb-10 italic">$500.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
+                        <button onClick={() => processPurchase("B2B")} disabled={isCheckingOut} className="bg-white text-black w-full py-5 font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors disabled:opacity-50">
+                            {isCheckingOut ? "Connecting..." : "Request Node"}
+                        </button>
+                      </div>
+                    </div>
+                ) : (
+                    <div className="bg-[#0d0d0d] border border-[#00ff41] p-10 max-w-2xl mx-auto text-center">
+                        <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Awaiting Payment</h3>
+                        <p className="text-xs text-zinc-400 mb-8 uppercase tracking-widest">Network: Polygon (MATIC)</p>
+                        
+                        <div className="bg-black border border-zinc-800 p-6 mb-8 inline-block">
+                             <p className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">Send Exactly:</p>
+                             <p className="text-4xl font-black text-[#00ff41] mb-6">{checkoutInfo.pay_amount} USDT</p>
+                             
+                             <p className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">To Address:</p>
+                             <p className="text-sm font-mono text-white break-all bg-zinc-900 p-4 border border-zinc-800">{checkoutInfo.pay_address}</p>
+                        </div>
+                        
+                        <p className="text-xs text-zinc-400 mb-8 max-w-md mx-auto">Do not close this page. The system will automatically unlock your license once the blockchain confirms the transaction.</p>
+                        
+                        <div className="flex gap-4 justify-center">
+                            <a href={checkoutInfo.invoice_url} target="_blank" rel="noreferrer" className="bg-zinc-800 text-white px-6 py-3 font-black uppercase tracking-widest text-xs hover:bg-zinc-700">Open in Gateway</a>
+                            <button onClick={() => setCheckoutInfo(null)} className="border border-red-500/50 text-red-500 px-6 py-3 font-black uppercase tracking-widest text-xs hover:bg-red-600 hover:text-white transition-colors">Cancel Request</button>
+                        </div>
+                    </div>
+                )}
             </div>
           )}
 

@@ -24,6 +24,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Admin State
+  const [adminUsersList, setAdminUsersList] = useState<any[]>([]);
+
   const [tradeAmount, setTradeAmount] = useState<number>(1000);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   
@@ -48,6 +51,7 @@ export default function Dashboard() {
       setUser(profile);
       setIsLoggedIn(true);
       
+      // Fetch markets if licensed
       if (profile.subscriptionTier !== 'none') {
         const mRes = await fetch(`${API_URL}/api/market/stream`, { headers: { "Authorization": `Bearer ${token}` } });
         if (mRes.ok) {
@@ -56,6 +60,13 @@ export default function Dashboard() {
             if (!selectedAsset && marketData.length > 0) setSelectedAsset(marketData[0]);
         }
       }
+
+      // Fetch Admin Data if God-Mode
+      if (profile.role === 'admin' && activeTab === 'watchtower') {
+          const aRes = await fetch(`${API_URL}/api/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
+          if (aRes.ok) setAdminUsersList(await aRes.json());
+      }
+
     } catch (e) { localStorage.removeItem("token"); setIsLoggedIn(false); } 
     finally { setLoading(false); }
   };
@@ -64,7 +75,7 @@ export default function Dashboard() {
     fetchData();
     const inv = setInterval(fetchData, 5000); 
     return () => clearInterval(inv);
-  }, []);
+  }, [activeTab]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +100,38 @@ export default function Dashboard() {
     } catch (err) { alert("GATEWAY ERROR."); }
   };
 
+  // --- ADMIN ACTIONS ---
+  const handleProvisionB2B = async (targetEmail: string) => {
+      const allowedDomain = prompt("Enter the allowed domain for this client (e.g., https://theirwebsite.com):");
+      if (!allowedDomain) return;
+      const plainTextPolygonKey = prompt("Enter the client's raw Polygon API Key (It will be encrypted in the DB):");
+      if (!plainTextPolygonKey) return;
+
+      try {
+          const res = await fetch(`${API_URL}/api/admin/provision-b2b`, {
+              method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+              body: JSON.stringify({ targetEmail, allowedDomain, plainTextPolygonKey })
+          });
+          const data = await res.json();
+          if (res.ok) {
+              alert(`PROVISIONED. Give this B2B API Key to the client: ${data.api_key}`);
+              fetchData();
+          } else { alert(data.error); }
+      } catch (e) { alert("Error provisioning node."); }
+  };
+
+  const handleBanUser = async (targetEmail: string) => {
+      if (!confirm(`Are you sure you want to permanently ban ${targetEmail}?`)) return;
+      try {
+          const res = await fetch(`${API_URL}/api/admin/ban`, {
+              method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+              body: JSON.stringify({ targetEmail })
+          });
+          if (res.ok) fetchData();
+      } catch (e) { alert("Error executing ban."); }
+  };
+
+  // --- STANDARD ACTIONS ---
   const getInbuiltPrediction = async () => {
     if (!selectedAsset || user?.subscriptionTier === 'none') return;
     try {
@@ -106,21 +149,18 @@ export default function Dashboard() {
       setAiAnalysis("ACCESS DENIED: Trading Academy requires an active Retail License.");
       return;
     }
-
     setIsAnalyzing(true);
     setAiAnalysis("Querying OpenAI Neural Engine...");
-    
     try {
       const res = await fetch(`${API_URL}/api/ai/openai/tutor`, {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ symbol: selectedAsset.symbol, question: userQuestion })
       });
-      
       const data = await res.json();
       if (res.ok) {
         let i = 0;
         setAiAnalysis("");
-        setUserQuestion(""); // Clear input
+        setUserQuestion(""); 
         const interval = setInterval(() => {
           setAiAnalysis(data.tutorResponse.slice(0, i));
           i++;
@@ -141,17 +181,10 @@ export default function Dashboard() {
             body: JSON.stringify({ tier })
         });
         const data = await res.json();
-        
-        if (res.ok) {
-            setCheckoutInfo(data);
-        } else {
-            alert(`CHECKOUT FAILED: ${data.error}`);
-        }
-    } catch(e) {
-        alert("GATEWAY ERROR: Unable to reach billing server.");
-    } finally {
-        setIsCheckingOut(false);
-    }
+        if (res.ok) { setCheckoutInfo(data); } 
+        else { alert(`CHECKOUT FAILED: ${data.error}`); }
+    } catch(e) { alert("GATEWAY ERROR: Unable to reach billing server."); } 
+    finally { setIsCheckingOut(false); }
   };
 
   if (loading) return <div className="bg-black min-h-screen text-[#00ff41] font-mono flex items-center justify-center animate-pulse tracking-[0.5em] text-xs uppercase">Initializing Secure Node...</div>;
@@ -201,6 +234,11 @@ export default function Dashboard() {
             <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Trading Terminal</button>
             <button onClick={() => setActiveTab("academy")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "academy" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>AI Academy</button>
             <button onClick={() => { setActiveTab("licenses"); setCheckoutInfo(null); }} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
+            
+            {/* THE GOD-MODE BUTTON */}
+            {user?.role === "admin" && (
+              <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-10 text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
+            )}
           </nav>
           <div className="mt-auto pt-5 border-t border-zinc-800">
              <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
@@ -217,7 +255,47 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {user?.subscriptionTier === 'none' && activeTab !== 'licenses' ? (
+          {/* WATCHTOWER VIEW (ADMIN ONLY) */}
+          {activeTab === "watchtower" && user?.role === "admin" && (
+            <div className="border border-red-900/50 bg-black shadow-[0_0_30px_rgba(220,38,38,0.1)]">
+              <div className="p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center">
+                <h4 className="text-red-500 font-black text-[10px] uppercase tracking-widest">Global Operator Ledger</h4>
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              </div>
+              <table className="w-full text-left text-xs text-white">
+                <thead>
+                    <tr className="border-b border-zinc-900 text-zinc-600 uppercase tracking-widest">
+                        <th className="p-4">Email</th>
+                        <th className="p-4">Role</th>
+                        <th className="p-4">Tier</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                  {adminUsersList.map((u, i) => (
+                    <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10">
+                        <td className="p-4 font-bold">{u.email}</td>
+                        <td className="p-4 text-zinc-500 uppercase">{u.role}</td>
+                        <td className="p-4 uppercase text-[#00ff41]">{u.subscriptionTier}</td>
+                        <td className="p-4 uppercase font-black">{u.isActive ? <span className="text-green-500">Active</span> : <span className="text-red-500">Banned</span>}</td>
+                        <td className="p-4 text-right flex justify-end gap-2">
+                            {u.subscriptionTier !== 'b2b_500' && u.isActive && (
+                                <button onClick={() => handleProvisionB2B(u.email)} className="bg-yellow-600 text-black px-3 py-1 font-black text-[10px] uppercase hover:bg-yellow-500">Make B2B</button>
+                            )}
+                            {u.isActive && u.email !== user.email && (
+                                <button onClick={() => handleBanUser(u.email)} className="bg-red-900/50 text-red-500 border border-red-500 px-3 py-1 font-black text-[10px] uppercase hover:bg-red-600 hover:text-white">Ban</button>
+                            )}
+                        </td>
+                    </tr>
+                  ))}
+                  {adminUsersList.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-zinc-600 uppercase font-black text-xs tracking-widest">Loading Ledger...</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {user?.subscriptionTier === 'none' && activeTab !== 'licenses' && activeTab !== 'watchtower' ? (
              <div className="p-10 border border-red-900/50 bg-red-900/10 text-center">
                  <h2 className="text-red-500 text-2xl font-black uppercase tracking-widest mb-4">Access Restricted</h2>
                  <p className="text-zinc-500 text-sm mb-6">You must acquire a license to access real-time streams and AI capabilities.</p>

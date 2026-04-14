@@ -24,6 +24,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Mobile Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Admin State
   const [adminUsersList, setAdminUsersList] = useState<any[]>([]);
 
@@ -51,7 +54,6 @@ export default function Dashboard() {
       setUser(profile);
       setIsLoggedIn(true);
       
-      // Fetch markets if licensed
       if (profile.subscriptionTier !== 'none') {
         const mRes = await fetch(`${API_URL}/api/market/stream`, { headers: { "Authorization": `Bearer ${token}` } });
         if (mRes.ok) {
@@ -61,7 +63,6 @@ export default function Dashboard() {
         }
       }
 
-      // Fetch Admin Data if God-Mode
       if (profile.role === 'admin' && activeTab === 'watchtower') {
           const aRes = await fetch(`${API_URL}/api/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
           if (aRes.ok) setAdminUsersList(await aRes.json());
@@ -100,11 +101,10 @@ export default function Dashboard() {
     } catch (err) { alert("GATEWAY ERROR."); }
   };
 
-  // --- ADMIN ACTIONS ---
   const handleProvisionB2B = async (targetEmail: string) => {
       const allowedDomain = prompt("Enter the allowed domain for this client (e.g., https://theirwebsite.com):");
       if (!allowedDomain) return;
-      const plainTextPolygonKey = prompt("Enter the client's raw Polygon API Key (It will be encrypted in the DB):");
+      const plainTextPolygonKey = prompt("Enter the client's raw Polygon API Key:");
       if (!plainTextPolygonKey) return;
 
       try {
@@ -131,7 +131,6 @@ export default function Dashboard() {
       } catch (e) { alert("Error executing ban."); }
   };
 
-  // --- STANDARD ACTIONS ---
   const getInbuiltPrediction = async () => {
     if (!selectedAsset || user?.subscriptionTier === 'none') return;
     try {
@@ -187,13 +186,19 @@ export default function Dashboard() {
     finally { setIsCheckingOut(false); }
   };
 
+  const switchTab = (tab: string) => {
+    setActiveTab(tab);
+    setCheckoutInfo(null);
+    setIsMobileMenuOpen(false); // Auto-close menu on mobile when navigating
+  };
+
   if (loading) return <div className="bg-black min-h-screen text-[#00ff41] font-mono flex items-center justify-center animate-pulse tracking-[0.5em] text-xs uppercase">Initializing Secure Node...</div>;
 
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
-        <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-10 shadow-2xl">
-          <h2 className="text-4xl font-black text-white uppercase italic mb-8 border-b border-[#00ff41] pb-2">
+        <div className="w-full max-w-md bg-[#0d0d0d] border border-zinc-800 p-8 md:p-10 shadow-2xl">
+          <h2 className="text-3xl md:text-4xl font-black text-white uppercase italic mb-8 border-b border-[#00ff41] pb-2">
              {isVerifying ? "Authorize" : (authMode === "login" ? "Identity" : "Create")}
           </h2>
           <form onSubmit={handleAuth} className="space-y-4">
@@ -222,24 +227,33 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col overflow-x-hidden">
       <Ticker stocks={stocks} />
-      <div className="flex flex-1">
+      <div className="flex flex-1 relative">
         
-        {/* SIDEBAR */}
-        <aside className="w-72 bg-[#0d0d0d] border-r border-zinc-800 p-8 flex flex-col">
-          <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase mb-10">NN-Fintech</h1>
+        {/* MOBILE MENU OVERLAY */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
+        )}
+
+        {/* RESPONSIVE SIDEBAR */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d0d0d] border-r border-zinc-800 p-8 flex flex-col transform ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}>
+          <div className="flex justify-between items-center mb-10">
+            <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase">NN-Fintech</h1>
+            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-zinc-500 text-xl font-black">✕</button>
+          </div>
+          
           <nav className="flex-1 space-y-3">
-            <button onClick={() => setActiveTab("overview")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "overview" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Overview</button>
-            <button onClick={() => setActiveTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Trading Terminal</button>
-            <button onClick={() => setActiveTab("academy")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "academy" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>AI Academy</button>
-            <button onClick={() => { setActiveTab("licenses"); setCheckoutInfo(null); }} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
+            <button onClick={() => switchTab("overview")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "overview" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Overview</button>
+            <button onClick={() => switchTab("terminal")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "terminal" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Trading Terminal</button>
+            <button onClick={() => switchTab("academy")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "academy" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>AI Academy</button>
+            <button onClick={() => switchTab("licenses")} className={`w-full text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest ${activeTab === "licenses" ? "bg-[#00ff41] text-black" : "text-zinc-500 hover:text-white"}`}>Licenses</button>
             
-            {/* THE GOD-MODE BUTTON */}
             {user?.role === "admin" && (
-              <button onClick={() => setActiveTab("watchtower")} className={`w-full mt-10 text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
+              <button onClick={() => switchTab("watchtower")} className={`w-full mt-10 text-left px-5 py-4 text-[10px] font-black uppercase tracking-widest border border-red-900/50 ${activeTab === "watchtower" ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]" : "text-red-500 hover:bg-red-900/20"}`}>Watchtower [ADMIN]</button>
             )}
           </nav>
+          
           <div className="mt-auto pt-5 border-t border-zinc-800">
              <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all mb-4">Terminate</button>
              <div className="text-center">
@@ -250,23 +264,27 @@ export default function Dashboard() {
         </aside>
 
         {/* MAIN VIEW */}
-        <main className="flex-1 p-10 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#051505] via-[#0a0a0a] to-[#0a0a0a]">
-          <header className="flex justify-between items-end mb-10 border-b border-zinc-800 pb-10">
-            <h2 className="text-5xl font-black uppercase italic text-white tracking-tighter">{activeTab}</h2>
+        <main className="flex-1 p-4 md:p-10 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#051505] via-[#0a0a0a] to-[#0a0a0a] w-full">
+          <header className="flex justify-between items-start md:items-end mb-8 md:mb-10 border-b border-zinc-800 pb-6 md:pb-10">
+            <div className="flex items-center gap-4">
+               <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden border border-zinc-800 bg-[#0d0d0d] text-[#00ff41] p-2 text-xs font-black uppercase tracking-widest hover:border-[#00ff41]">
+                   Menu
+               </button>
+               <h2 className="text-3xl md:text-5xl font-black uppercase italic text-white tracking-tighter">{activeTab}</h2>
+            </div>
             <div className="text-right">
-              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Account Status</p>
-              <p className="text-xl font-black text-[#00ff41] tracking-tighter uppercase">{user?.subscriptionTier === 'none' ? 'UNLICENSED' : user.subscriptionTier}</p>
+              <p className="text-[8px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest">Account Status</p>
+              <p className="text-sm md:text-xl font-black text-[#00ff41] tracking-tighter uppercase">{user?.subscriptionTier === 'none' ? 'UNLICENSED' : user.subscriptionTier}</p>
             </div>
           </header>
 
-          {/* WATCHTOWER VIEW (ADMIN ONLY) */}
           {activeTab === "watchtower" && user?.role === "admin" && (
-            <div className="border border-red-900/50 bg-black shadow-[0_0_30px_rgba(220,38,38,0.1)]">
-              <div className="p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center">
+            <div className="border border-red-900/50 bg-black shadow-[0_0_30px_rgba(220,38,38,0.1)] overflow-x-auto">
+              <div className="p-4 md:p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center min-w-[600px]">
                 <h4 className="text-red-500 font-black text-[10px] uppercase tracking-widest">Global Operator Ledger</h4>
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </div>
-              <table className="w-full text-left text-xs text-white">
+              <table className="w-full text-left text-xs text-white min-w-[600px]">
                 <thead>
                     <tr className="border-b border-zinc-900 text-zinc-600 uppercase tracking-widest">
                         <th className="p-4">Email</th>
@@ -285,7 +303,7 @@ export default function Dashboard() {
                         <td className="p-4 uppercase font-black">{u.isActive ? <span className="text-green-500">Active</span> : <span className="text-red-500">Banned</span>}</td>
                         <td className="p-4 text-right flex justify-end gap-2">
                             {u.subscriptionTier !== 'b2b_500' && u.isActive && (
-                                <button onClick={() => handleProvisionB2B(u.email)} className="bg-yellow-600 text-black px-3 py-1 font-black text-[10px] uppercase hover:bg-yellow-500">Make B2B</button>
+                                <button onClick={() => handleProvisionB2B(u.email)} className="bg-yellow-600 text-black px-3 py-1 font-black text-[10px] uppercase hover:bg-yellow-500 whitespace-nowrap">Make B2B</button>
                             )}
                             {u.isActive && u.email !== user.email && (
                                 <button onClick={() => handleBanUser(u.email)} className="bg-red-900/50 text-red-500 border border-red-500 px-3 py-1 font-black text-[10px] uppercase hover:bg-red-600 hover:text-white">Ban</button>
@@ -300,53 +318,53 @@ export default function Dashboard() {
           )}
 
           {user?.subscriptionTier === 'none' && activeTab !== 'licenses' && activeTab !== 'watchtower' ? (
-             <div className="p-10 border border-red-900/50 bg-red-900/10 text-center">
-                 <h2 className="text-red-500 text-2xl font-black uppercase tracking-widest mb-4">Access Restricted</h2>
-                 <p className="text-zinc-500 text-sm mb-6">You must acquire a license to access real-time streams and AI capabilities.</p>
-                 <button onClick={() => setActiveTab("licenses")} className="bg-red-600 text-white px-8 py-3 font-black uppercase tracking-widest">View Licenses</button>
+             <div className="p-6 md:p-10 border border-red-900/50 bg-red-900/10 text-center">
+                 <h2 className="text-red-500 text-xl md:text-2xl font-black uppercase tracking-widest mb-4">Access Restricted</h2>
+                 <p className="text-zinc-500 text-xs md:text-sm mb-6">You must acquire a license to access real-time streams and AI capabilities.</p>
+                 <button onClick={() => setActiveTab("licenses")} className="bg-red-600 text-white px-6 md:px-8 py-3 font-black uppercase tracking-widest text-sm">View Licenses</button>
              </div>
           ) : (
               <>
                   {activeTab === "overview" && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
                       {stocks.map(s => (
-                        <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
+                        <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-6 md:p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
                           <div className="flex justify-between mb-4">
                              <span className="text-xs font-black text-zinc-400 group-hover:text-white">{s.symbol}</span>
                              {s.change && <span className={`text-[10px] font-black ${s.change.includes('+') ? 'text-green-500' : 'text-red-500'}`}>{s.change}</span>}
                           </div>
-                          <p className="text-3xl font-black tabular-nums tracking-tighter">${s.price.toFixed(2)}</p>
+                          <p className="text-2xl md:text-3xl font-black tabular-nums tracking-tighter">${s.price.toFixed(2)}</p>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {activeTab === "terminal" && (
-                    <div className="flex gap-6 min-h-[600px]">
-                      <div className="w-1/5 bg-[#0d0d0d] border border-zinc-800 p-4 overflow-y-auto">
+                    <div className="flex flex-col lg:flex-row gap-6 min-h-[600px]">
+                      <div className="w-full lg:w-1/5 bg-[#0d0d0d] border border-zinc-800 p-4 h-48 lg:h-auto overflow-y-auto">
                         <p className="text-[10px] font-black text-zinc-500 mb-4 border-b border-zinc-800 pb-2 uppercase tracking-widest">Markets</p>
                         {stocks.map(s => (
-                          <div key={s.symbol} onClick={() => { setSelectedAsset(s); setInbuiltSignal(null); }} className={`p-4 cursor-pointer hover:bg-zinc-900 border-b border-zinc-900 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : ''}`}>
+                          <div key={s.symbol} onClick={() => { setSelectedAsset(s); setInbuiltSignal(null); }} className={`p-3 md:p-4 cursor-pointer hover:bg-zinc-900 border-b border-zinc-900 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : ''}`}>
                             <span className="font-black text-white text-xs">{s.symbol}</span>
                             <span className={`text-[10px] font-mono font-black text-[#00ff41]`}>${s.price.toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
                       
-                      <div className="w-3/5 bg-[#0d0d0d] border border-zinc-800 p-1 flex flex-col relative">
-                         <div className="flex-1 flex items-center justify-center">
-                             {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <span className="text-zinc-600 text-xs uppercase font-black tracking-widest">Connect Stream...</span>}
+                      <div className="w-full lg:w-3/5 bg-[#0d0d0d] border border-zinc-800 p-1 flex flex-col relative min-h-[300px]">
+                         <div className="flex-1 flex items-center justify-center p-2">
+                             {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <span className="text-zinc-600 text-xs uppercase font-black tracking-widest text-center">Connect Stream...</span>}
                          </div>
                       </div>
 
-                      <div className="w-1/5 bg-[#0d0d0d] border border-zinc-800 p-6 flex flex-col justify-start">
-                         <h3 className="text-[#00ff41] font-black uppercase text-sm mb-4 border-b border-zinc-800 pb-2">Proprietary Algos</h3>
+                      <div className="w-full lg:w-1/5 bg-[#0d0d0d] border border-zinc-800 p-4 md:p-6 flex flex-col justify-start">
+                         <h3 className="text-[#00ff41] font-black uppercase text-xs md:text-sm mb-4 border-b border-zinc-800 pb-2">Proprietary Algos</h3>
                          <button onClick={getInbuiltPrediction} className="w-full bg-zinc-900 border border-zinc-700 text-white font-black py-3 uppercase tracking-widest hover:border-[#00ff41] transition-all text-xs mb-6">Run Math Analysis</button>
                          
                          {inbuiltSignal && (
                              <div className="bg-black border border-[#00ff41] p-4 text-center">
                                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Signal Generated</p>
-                                 <p className={`text-xl font-black uppercase ${inbuiltSignal.signal.includes('BUY') ? 'text-[#00ff41]' : (inbuiltSignal.signal.includes('SELL') ? 'text-red-500' : 'text-yellow-500')}`}>{inbuiltSignal.signal}</p>
+                                 <p className={`text-lg md:text-xl font-black uppercase ${inbuiltSignal.signal.includes('BUY') ? 'text-[#00ff41]' : (inbuiltSignal.signal.includes('SELL') ? 'text-red-500' : 'text-yellow-500')}`}>{inbuiltSignal.signal}</p>
                                  <p className="text-xs text-zinc-400 mt-2">SMA: ${inbuiltSignal.movingAverage}</p>
                              </div>
                          )}
@@ -355,29 +373,29 @@ export default function Dashboard() {
                   )}
 
                   {activeTab === "academy" && (
-                    <div className="space-y-10 max-w-5xl">
-                        <div className="bg-[#0d0d0d] border border-[#00ff41] p-8 relative overflow-hidden">
-                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">OpenAI Neural Tutor</h3>
-                            <p className="text-xs text-zinc-400 mb-6 uppercase tracking-widest">Ask a specific question about an asset.</p>
+                    <div className="space-y-6 md:space-y-10 max-w-5xl">
+                        <div className="bg-[#0d0d0d] border border-[#00ff41] p-4 md:p-8 relative overflow-hidden">
+                            <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-2">OpenAI Neural Tutor</h3>
+                            <p className="text-[10px] md:text-xs text-zinc-400 mb-6 uppercase tracking-widest">Ask a specific question about an asset.</p>
                             
-                            <div className="flex gap-4 mb-4">
+                            <div className="flex flex-wrap gap-2 md:gap-4 mb-4">
                                 {stocks.map(s => (
-                                    <button key={s.symbol} onClick={() => setSelectedAsset(s)} className={`px-4 py-2 border ${selectedAsset?.symbol === s.symbol ? 'border-[#00ff41] text-[#00ff41]' : 'border-zinc-800 text-zinc-500'} text-xs font-black uppercase bg-black`}>{s.symbol}</button>
+                                    <button key={s.symbol} onClick={() => setSelectedAsset(s)} className={`px-3 py-2 border ${selectedAsset?.symbol === s.symbol ? 'border-[#00ff41] text-[#00ff41]' : 'border-zinc-800 text-zinc-500'} text-[10px] md:text-xs font-black uppercase bg-black`}>{s.symbol}</button>
                                 ))}
                             </div>
 
-                            <div className="flex gap-4 mb-6">
+                            <div className="flex flex-col md:flex-row gap-4 mb-6">
                                 <input 
                                    type="text" 
                                    value={userQuestion} 
                                    onChange={(e) => setUserQuestion(e.target.value)} 
                                    placeholder="e.g., Explain why I should buy this right now." 
-                                   className="flex-1 bg-black border border-zinc-800 p-3 text-white outline-none focus:border-[#00ff41] text-sm font-mono"
+                                   className="flex-1 bg-black border border-zinc-800 p-3 text-white outline-none focus:border-[#00ff41] text-xs md:text-sm font-mono"
                                 />
-                                <button onClick={runQuantAI} disabled={isAnalyzing || !selectedAsset || !userQuestion} className="bg-[#00ff41] text-black px-6 font-black uppercase disabled:opacity-50 tracking-widest">Ask AI</button>
+                                <button onClick={runQuantAI} disabled={isAnalyzing || !selectedAsset || !userQuestion} className="bg-[#00ff41] text-black px-6 py-3 md:py-0 font-black uppercase disabled:opacity-50 tracking-widest text-xs md:text-sm">Ask AI</button>
                             </div>
 
-                            <div className="p-6 min-h-[120px] font-mono text-sm leading-relaxed border border-zinc-800 text-[#00ff41] bg-black">
+                            <div className="p-4 md:p-6 min-h-[120px] font-mono text-xs md:text-sm leading-relaxed border border-zinc-800 text-[#00ff41] bg-black">
                                 {aiAnalysis || "Awaiting query..."}
                             </div>
                         </div>
@@ -389,42 +407,42 @@ export default function Dashboard() {
           {activeTab === "licenses" && (
             <div className="max-w-5xl">
                 {!checkoutInfo ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                      <div className="p-12 border border-zinc-800 bg-[#0d0d0d] hover:border-[#00ff41] transition-all">
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Retail Operator</h3>
-                        <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Unlocks Live Trading & Academy AI.</p>
-                        <p className="text-4xl font-black text-[#00ff41] mb-10 italic">$20.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
-                        <button onClick={() => processPurchase("RETAIL")} disabled={isCheckingOut} className="bg-[#00ff41] text-black w-full py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] disabled:opacity-50">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
+                      <div className="p-8 md:p-12 border border-zinc-800 bg-[#0d0d0d] hover:border-[#00ff41] transition-all">
+                        <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter">Retail Operator</h3>
+                        <p className="text-[10px] md:text-xs text-zinc-500 uppercase mt-2 mb-6 h-auto md:h-8">Unlocks Live Trading & Academy AI.</p>
+                        <p className="text-3xl md:text-4xl font-black text-[#00ff41] mb-10 italic">$20.00 <span className="text-[10px] md:text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
+                        <button onClick={() => processPurchase("RETAIL")} disabled={isCheckingOut} className="bg-[#00ff41] text-black w-full py-4 md:py-5 font-black uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,65,0.4)] disabled:opacity-50 text-xs md:text-base">
                             {isCheckingOut ? "Connecting..." : "Buy License"}
                         </button>
                       </div>
-                      <div className="p-12 border-4 border-yellow-500 bg-black hover:shadow-[10px_10px_0_rgba(234,179,8,0.2)] transition-all">
-                        <h3 className="text-2xl font-black text-yellow-500 uppercase tracking-tighter">Institutional B2B</h3>
-                        <p className="text-xs text-zinc-500 uppercase mt-2 mb-6 h-8">Bring-Your-Own-Key. Unlocks specific server API endpoints.</p>
-                        <p className="text-4xl font-black text-white mb-10 italic">$500.00 <span className="text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
-                        <button onClick={() => processPurchase("B2B")} disabled={isCheckingOut} className="bg-white text-black w-full py-5 font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors disabled:opacity-50">
+                      <div className="p-8 md:p-12 border-4 border-yellow-500 bg-black hover:shadow-[10px_10px_0_rgba(234,179,8,0.2)] transition-all">
+                        <h3 className="text-xl md:text-2xl font-black text-yellow-500 uppercase tracking-tighter">Institutional B2B</h3>
+                        <p className="text-[10px] md:text-xs text-zinc-500 uppercase mt-2 mb-6 h-auto md:h-8">Bring-Your-Own-Key. Unlocks specific server API endpoints.</p>
+                        <p className="text-3xl md:text-4xl font-black text-white mb-10 italic">$500.00 <span className="text-[10px] md:text-xs text-zinc-600 not-italic uppercase">/ Month</span></p>
+                        <button onClick={() => processPurchase("B2B")} disabled={isCheckingOut} className="bg-white text-black w-full py-4 md:py-5 font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors disabled:opacity-50 text-xs md:text-base">
                             {isCheckingOut ? "Connecting..." : "Request Node"}
                         </button>
                       </div>
                     </div>
                 ) : (
-                    <div className="bg-[#0d0d0d] border border-[#00ff41] p-10 max-w-2xl mx-auto text-center">
-                        <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Awaiting Payment</h3>
-                        <p className="text-xs text-zinc-400 mb-8 uppercase tracking-widest">Network: Polygon (MATIC)</p>
+                    <div className="bg-[#0d0d0d] border border-[#00ff41] p-6 md:p-10 max-w-2xl mx-auto text-center">
+                        <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter mb-2">Awaiting Payment</h3>
+                        <p className="text-[10px] md:text-xs text-zinc-400 mb-8 uppercase tracking-widest">Network: Polygon (MATIC)</p>
                         
-                        <div className="bg-black border border-zinc-800 p-6 mb-8 inline-block">
-                             <p className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">Send Exactly:</p>
-                             <p className="text-4xl font-black text-[#00ff41] mb-6">{checkoutInfo.pay_amount} USDT</p>
+                        <div className="bg-black border border-zinc-800 p-4 md:p-6 mb-8 inline-block w-full overflow-hidden">
+                             <p className="text-zinc-500 text-[8px] md:text-[10px] uppercase tracking-widest mb-2">Send Exactly:</p>
+                             <p className="text-3xl md:text-4xl font-black text-[#00ff41] mb-6">{checkoutInfo.pay_amount} USDT</p>
                              
-                             <p className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">To Address:</p>
-                             <p className="text-sm font-mono text-white break-all bg-zinc-900 p-4 border border-zinc-800">{checkoutInfo.pay_address}</p>
+                             <p className="text-zinc-500 text-[8px] md:text-[10px] uppercase tracking-widest mb-2">To Address:</p>
+                             <p className="text-xs md:text-sm font-mono text-white break-all bg-zinc-900 p-3 md:p-4 border border-zinc-800">{checkoutInfo.pay_address}</p>
                         </div>
                         
-                        <p className="text-xs text-zinc-400 mb-8 max-w-md mx-auto">Do not close this page. The system will automatically unlock your license once the blockchain confirms the transaction.</p>
+                        <p className="text-[10px] md:text-xs text-zinc-400 mb-8 max-w-md mx-auto">Do not close this page. The system will automatically unlock your license once the blockchain confirms the transaction.</p>
                         
-                        <div className="flex gap-4 justify-center">
-                            <a href={checkoutInfo.invoice_url} target="_blank" rel="noreferrer" className="bg-zinc-800 text-white px-6 py-3 font-black uppercase tracking-widest text-xs hover:bg-zinc-700">Open in Gateway</a>
-                            <button onClick={() => setCheckoutInfo(null)} className="border border-red-500/50 text-red-500 px-6 py-3 font-black uppercase tracking-widest text-xs hover:bg-red-600 hover:text-white transition-colors">Cancel Request</button>
+                        <div className="flex flex-col md:flex-row gap-4 justify-center">
+                            <a href={checkoutInfo.invoice_url} target="_blank" rel="noreferrer" className="bg-zinc-800 text-white px-6 py-4 md:py-3 font-black uppercase tracking-widest text-[10px] md:text-xs hover:bg-zinc-700 text-center">Open in Gateway</a>
+                            <button onClick={() => setCheckoutInfo(null)} className="border border-red-500/50 text-red-500 px-6 py-4 md:py-3 font-black uppercase tracking-widest text-[10px] md:text-xs hover:bg-red-600 hover:text-white transition-colors">Cancel Request</button>
                         </div>
                     </div>
                 )}

@@ -241,7 +241,11 @@ export default function Dashboard() {
             )}
           </nav>
           <div className="mt-auto pt-5 border-t border-zinc-800">
-             <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all">Terminate</button>
+             <button onClick={() => { localStorage.removeItem("token"); window.location.reload(); }} className="w-full border border-red-500/50 text-red-500 text-[10px] py-3 font-black uppercase hover:bg-red-600 hover:text-white transition-all mb-4">Terminate</button>
+             <div className="text-center">
+                 <p className="text-[8px] text-zinc-600 uppercase tracking-widest font-black">&copy; {new Date().getFullYear()} Nicholaus Nicholaus.</p>
+                 <p className="text-[8px] text-zinc-600 uppercase tracking-widest font-black mt-1">All Rights Reserved.</p>
+             </div>
           </div>
         </aside>
 

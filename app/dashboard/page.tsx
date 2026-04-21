@@ -29,6 +29,7 @@ export default function Dashboard() {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [adminUsersList, setAdminUsersList] = useState<any[]>([]);
+  const [adminLogs, setAdminLogs] = useState<any[]>([]);
   const [tradeAmount, setTradeAmount] = useState<number>(1000);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   
@@ -61,8 +62,11 @@ export default function Dashboard() {
       }
 
       if (profile.role === 'admin' && activeTab === 'watchtower') {
-          const aRes = await fetch(`${API_URL}/api/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
-          if (aRes.ok) setAdminUsersList(await aRes.json());
+          const uRes = await fetch(`${API_URL}/api/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
+          if (uRes.ok) setAdminUsersList(await uRes.json());
+          
+          const tRes = await fetch(`${API_URL}/api/admin/all-transactions`, { headers: { "Authorization": `Bearer ${token}` } });
+          if (tRes.ok) setAdminLogs(await tRes.json());
       }
     } catch (e) { localStorage.removeItem("token"); setIsLoggedIn(false); } 
     finally { setLoading(false); }
@@ -337,41 +341,65 @@ export default function Dashboard() {
           </header>
 
           {activeTab === "watchtower" && user?.role === "admin" && (
-            <div className="border border-red-900/50 bg-black shadow-[0_0_30px_rgba(220,38,38,0.1)] overflow-x-auto">
-              <div className="p-4 md:p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center min-w-[600px]">
-                <h4 className="text-red-500 font-black text-[10px] uppercase tracking-widest">Global Operator Ledger</h4>
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-              </div>
-              <table className="w-full text-left text-xs text-white min-w-[600px]">
-                <thead>
-                    <tr className="border-b border-zinc-900 text-zinc-600 uppercase tracking-widest">
-                        <th className="p-4">Email</th>
-                        <th className="p-4">Role</th>
-                        <th className="p-4">Tier</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                  {adminUsersList.map((u, i) => (
-                    <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10">
-                        <td className="p-4 font-bold">{u.email}</td>
-                        <td className="p-4 text-zinc-500 uppercase">{u.role}</td>
-                        <td className="p-4 uppercase text-[#00ff41]">{u.subscriptionTier}</td>
-                        <td className="p-4 uppercase font-black">{u.isActive ? <span className="text-green-500">Active</span> : <span className="text-red-500">Banned</span>}</td>
-                        <td className="p-4 text-right flex justify-end gap-2">
-                            {u.subscriptionTier !== 'b2b_500' && u.isActive && (
-                                <button onClick={() => handleProvisionB2B(u.email)} className="bg-yellow-600 text-black px-3 py-1 font-black text-[10px] uppercase hover:bg-yellow-500 whitespace-nowrap">Make B2B</button>
-                            )}
-                            {u.isActive && u.email !== user.email && (
-                                <button onClick={() => handleBanUser(u.email)} className="bg-red-900/50 text-red-500 border border-red-500 px-3 py-1 font-black text-[10px] uppercase hover:bg-red-600 hover:text-white">Ban</button>
-                            )}
-                        </td>
-                    </tr>
-                  ))}
-                  {adminUsersList.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-zinc-600 uppercase font-black text-xs tracking-widest">Loading Ledger...</td></tr>}
-                </tbody>
-              </table>
+            <div className="space-y-10">
+                <div className="border border-red-900/50 bg-black shadow-[0_0_30px_rgba(220,38,38,0.1)] overflow-x-auto">
+                  <div className="p-4 md:p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center min-w-[600px]">
+                    <h4 className="text-red-500 font-black text-[10px] uppercase tracking-widest">Global Operator Ledger</h4>
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  </div>
+                  <table className="w-full text-left text-xs text-white min-w-[600px]">
+                    <thead>
+                        <tr className="border-b border-zinc-900 text-zinc-600 uppercase tracking-widest">
+                            <th className="p-4">Email</th>
+                            <th className="p-4">Role</th>
+                            <th className="p-4">Tier</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                      {adminUsersList.map((u, i) => (
+                        <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10">
+                            <td className="p-4 font-bold">{u.email}</td>
+                            <td className="p-4 text-zinc-500 uppercase">{u.role}</td>
+                            <td className="p-4 uppercase text-[#00ff41]">{u.subscriptionTier}</td>
+                            <td className="p-4 uppercase font-black">{u.isActive ? <span className="text-green-500">Active</span> : <span className="text-red-500">Banned</span>}</td>
+                            <td className="p-4 text-right flex justify-end gap-2">
+                                {u.subscriptionTier !== 'b2b_500' && u.isActive && (
+                                    <button onClick={() => handleProvisionB2B(u.email)} className="bg-yellow-600 text-black px-3 py-1 font-black text-[10px] uppercase hover:bg-yellow-500 whitespace-nowrap">Make B2B</button>
+                                )}
+                                {u.isActive && u.email !== user.email && (
+                                    <button onClick={() => handleBanUser(u.email)} className="bg-red-900/50 text-red-500 border border-red-500 px-3 py-1 font-black text-[10px] uppercase hover:bg-red-600 hover:text-white">Ban</button>
+                                )}
+                            </td>
+                        </tr>
+                      ))}
+                      {adminUsersList.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-zinc-600 uppercase font-black text-xs tracking-widest">Loading Ledger...</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border border-red-900/50 bg-black shadow-[0_0_30px_rgba(220,38,38,0.1)] overflow-x-auto">
+                  <div className="p-4 md:p-6 bg-red-900/20 border-b border-red-900/50 flex justify-between items-center min-w-[600px]">
+                    <h4 className="text-red-500 font-black text-[10px] uppercase tracking-widest">Global Transaction Feed</h4>
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  </div>
+                  <table className="w-full text-left text-[11px] text-white min-w-[600px]">
+                    <thead>
+                        <tr className="border-b border-zinc-900 text-zinc-600 uppercase tracking-widest"><th className="p-6">Operator ID</th><th className="p-6">Action</th><th className="p-6 text-right">Value (USD)</th></tr>
+                    </thead>
+                    <tbody>
+                      {adminLogs.map((log, i) => (
+                        <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10">
+                            <td className="p-6 font-bold">{log.userEmail}</td>
+                            <td className="p-6 text-zinc-500 font-mono uppercase">{log.type}</td>
+                            <td className={`p-6 text-right font-black tabular-nums ${log.amount < 0 ? 'text-zinc-600' : 'text-[#00ff41]'}`}>{log.amount?.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      {adminLogs.length === 0 && <tr><td colSpan={3} className="p-10 text-center text-zinc-600 uppercase font-black text-xs tracking-widest">No Operator Activity Detected</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
             </div>
           )}
 
@@ -387,8 +415,9 @@ export default function Dashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
                       {stocks.map(s => (
                         <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-6 md:p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
-                          <div className="flex justify-between mb-4">
+                          <div className="flex justify-between mb-4 items-center">
                              <span className="text-xs font-black text-zinc-400 group-hover:text-white">{s.symbol}</span>
+                             {s.change && <span className={`text-[10px] font-black px-2 py-1 bg-black border ${s.change.includes('+') ? 'text-[#00ff41] border-[#00ff41]/30' : 'text-red-500 border-red-500/30'}`}>{s.change}</span>}
                           </div>
                           <p className="text-2xl md:text-3xl font-black tabular-nums tracking-tighter">${s.price.toFixed(4)}</p>
                         </div>
@@ -403,7 +432,10 @@ export default function Dashboard() {
                         {stocks.map(s => (
                           <div key={s.symbol} onClick={() => { setSelectedAsset(s); setInbuiltSignal(null); }} className={`p-3 md:p-4 cursor-pointer hover:bg-zinc-900 border-b border-zinc-900 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : ''}`}>
                             <span className="font-black text-white text-xs">{s.symbol}</span>
-                            <span className="text-[10px] font-mono font-black text-[#00ff41]">${s.price.toFixed(4)}</span>
+                            <div className="text-right">
+                              <p className={`text-[10px] font-mono font-black ${s.change?.includes('+') ? 'text-[#00ff41]' : 'text-red-500'}`}>${s.price.toFixed(4)}</p>
+                              <p className={`text-[8px] font-mono font-black mt-1 ${s.change?.includes('+') ? 'text-[#00ff41]' : 'text-red-500'}`}>{s.change}</p>
+                            </div>
                           </div>
                         ))}
                       </div>

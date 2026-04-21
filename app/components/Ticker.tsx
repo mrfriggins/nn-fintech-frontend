@@ -9,7 +9,14 @@ export default function Ticker({ stocks }: { stocks: any[] }) {
         {stocks.map((s, i) => (
           <div key={i} className="flex gap-4 items-center">
             <span className="text-[10px] font-black text-zinc-400 uppercase">{s.symbol}</span>
-            <span className="text-[10px] font-mono font-black text-[#00ff41]">${s.price?.toFixed(4)}</span>
+            <div className="flex gap-2 items-baseline">
+                <span className="text-[10px] font-mono font-black text-white">${s.price?.toFixed(4)}</span>
+                {s.change && (
+                    <span className={`text-[9px] font-mono font-black ${s.change.includes('+') ? 'text-[#00ff41]' : 'text-red-500'}`}>
+                        {s.change}
+                    </span>
+                )}
+            </div>
           </div>
         ))}
       </div>

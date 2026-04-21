@@ -59,7 +59,8 @@ export default function Dashboard() {
       setUser(profile);
       setIsLoggedIn(true);
       
-      if (profile.subscriptionTier !== 'none') {
+      // FIXED: Ensures Super Admin isn't blocked from the data stream by a 'none' tier
+      if (profile.subscriptionTier !== 'none' || profile.role === 'admin') {
         const mRes = await fetch(`${API_URL}/api/market/stream`, { headers: { "Authorization": `Bearer ${token}` } });
         if (mRes.ok) {
             const marketData = await mRes.json();
@@ -85,7 +86,7 @@ export default function Dashboard() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (authMode === "register" && !termsAccepted && !isVerifying) return; // Hard stop
+    if (authMode === "register" && !termsAccepted && !isVerifying) return; 
 
     const endpoint = isVerifying ? "/auth/verify" : (authMode === "login" ? "/auth/login" : "/auth/register");
     const body = isVerifying ? { email, otp } : { email, password, fullName, country };
@@ -139,7 +140,8 @@ export default function Dashboard() {
   };
 
   const getInbuiltPrediction = async () => {
-    if (!selectedAsset || user?.subscriptionTier === 'none') return;
+    // FIXED: Protect against errors while explicitly allowing Admin bypass
+    if (!selectedAsset || (user?.subscriptionTier === 'none' && user?.role !== 'admin')) return;
     try {
         const res = await fetch(`${API_URL}/api/ai/inbuilt/predict/${encodeURIComponent(selectedAsset.symbol)}`, {
             headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
@@ -151,7 +153,7 @@ export default function Dashboard() {
 
   const runQuantAI = async () => {
     if (!selectedAsset || !userQuestion) return;
-    if (user?.subscriptionTier === 'none') {
+    if (user?.subscriptionTier === 'none' && user?.role !== 'admin') {
       setAiAnalysis("ACCESS DENIED: Neural Academy requires an active Software License.");
       return;
     }
@@ -328,13 +330,13 @@ export default function Dashboard() {
           <header className="flex justify-between items-start md:items-end mb-8 md:mb-10 border-b border-zinc-800 pb-6 md:pb-10">
             <div className="flex items-center gap-4">
                <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden border border-zinc-800 bg-[#0d0d0d] text-[#00ff41] p-2 text-xs font-black uppercase tracking-widest hover:border-[#00ff41]">
-                   Menu
+                    Menu
                </button>
                <h2 className="text-3xl md:text-5xl font-black uppercase italic text-white tracking-tighter">{activeTab}</h2>
             </div>
             <div className="text-right">
               <p className="text-[8px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest">License Status</p>
-              <p className="text-sm md:text-xl font-black text-[#00ff41] tracking-tighter uppercase">{user?.subscriptionTier === 'none' ? 'UNLICENSED' : user.subscriptionTier}</p>
+              <p className="text-sm md:text-xl font-black text-[#00ff41] tracking-tighter uppercase">{user?.subscriptionTier === 'none' && user?.role !== 'admin' ? 'UNLICENSED' : (user?.role === 'admin' ? 'ADMIN OVERRIDE' : user?.subscriptionTier)}</p>
             </div>
           </header>
 
@@ -377,7 +379,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {user?.subscriptionTier === 'none' && activeTab !== 'licenses' && activeTab !== 'watchtower' ? (
+          {user?.subscriptionTier === 'none' && user?.role !== 'admin' && activeTab !== 'licenses' && activeTab !== 'watchtower' ? (
              <div className="p-6 md:p-10 border border-red-900/50 bg-red-900/10 text-center">
                  <h2 className="text-red-500 text-xl md:text-2xl font-black uppercase tracking-widest mb-4">Access Restricted</h2>
                  <p className="text-zinc-500 text-xs md:text-sm mb-6">You must acquire a software license to access the simulator and AI capabilities.</p>

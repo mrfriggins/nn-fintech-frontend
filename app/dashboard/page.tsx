@@ -390,12 +390,15 @@ export default function Dashboard() {
                     </thead>
                     <tbody>
                       {adminLogs.map((log, i) => (
-                        <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10">
-                            <td className="p-6 font-bold">{log.userEmail}</td>
-                            <td className="p-6 text-zinc-500 font-mono uppercase">{log.type}</td>
-                            <td className={`p-6 text-right font-black tabular-nums ${log.amount < 0 ? 'text-zinc-600' : 'text-[#00ff41]'}`}>{log.amount?.toFixed(2)}</td>
-                        </tr>
-                      ))}
+  <tr key={i} className="border-b border-zinc-900/50 hover:bg-red-900/10">
+      <td className="p-6 font-bold">{log.userEmail}</td>
+      <td className="p-6 text-zinc-500 font-mono uppercase">{log.type}</td>
+      {/* The fix: Wrap log.amount in Number() and use a fallback of 0 */}
+      <td className={`p-6 text-right font-black tabular-nums ${Number(log.amount || 0) < 0 ? 'text-zinc-600' : 'text-[#00ff41]'}`}>
+          {Number(log.amount || 0).toFixed(2)}
+      </td>
+  </tr>
+))}
                       {adminLogs.length === 0 && <tr><td colSpan={3} className="p-10 text-center text-zinc-600 uppercase font-black text-xs tracking-widest">No Operator Activity Detected</td></tr>}
                     </tbody>
                   </table>

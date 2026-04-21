@@ -5,9 +5,7 @@ import CandleChart from "../components/CandleChart";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-const countries = [
-  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
-];
+const countries = ["Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"];
 
 export default function Dashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -152,7 +150,6 @@ export default function Dashboard() {
     finally { setIsCheckingOut(false); }
   };
 
-  // --- THE FIX: ADDING THE MISSING BAN FUNCTION ---
   const handleBanUser = async (targetEmail: string) => {
     if (!confirm(`Are you sure you want to completely ban ${targetEmail} from the platform?`)) return;
     try {
@@ -236,12 +233,13 @@ export default function Dashboard() {
     );
   }
 
+  const isLocked = user?.subscriptionTier === 'none' && user?.role !== 'admin' && user?.email !== 'nicholausdominic86@gmail.com';
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col overflow-hidden">
       <Ticker stocks={stocks} />
       <div className="flex flex-1 relative overflow-hidden">
         
-        {/* MOBILE MENU OVERLAY */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
@@ -276,86 +274,96 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {/* TERMINAL TAB: ENHANCED VISUALS INTACT */}
-          {activeTab === "terminal" && (
-            <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[900px]">
-              <div className="w-full lg:w-1/4 flex flex-col gap-4">
-                <div className="flex-1 bg-[#0d0d0d] border border-zinc-800 p-4 overflow-y-auto max-h-[400px] lg:max-h-full scrollbar-hide">
-                  <p className="text-[10px] font-black text-zinc-500 mb-4 border-b border-zinc-800 pb-2 uppercase tracking-widest">Market Feed</p>
-                  <div className="space-y-1">
-                    {stocks.map(s => (
-                      <div key={s.symbol} onClick={() => { setSelectedAsset(s); setInbuiltSignal(null); }} className={`p-3 cursor-pointer border-b border-zinc-900/30 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-2 border-[#00ff41]' : 'hover:bg-zinc-900'}`}>
-                        <span className="font-black text-white text-[11px]">{s.symbol}</span>
-                        <p className={`text-[11px] font-mono font-black ${s.change?.includes('+') ? 'text-[#00ff41]' : 'text-red-500'}`}>${Number(s.price).toFixed(4)}</p>
+          {/* THE PAYWALL LOCK */}
+          {isLocked && activeTab !== "licenses" ? (
+             <div className="flex flex-col items-center justify-center h-full min-h-[500px] border border-red-900/50 bg-red-900/10 text-center p-10 mt-10">
+                 <h2 className="text-red-500 text-3xl md:text-4xl font-black uppercase tracking-widest mb-4">Access Restricted</h2>
+                 <p className="text-zinc-500 mb-8 max-w-md text-xs md:text-sm">You are attempting to access proprietary institutional software without an active license. Acquire a node to initialize the data stream.</p>
+                 <button onClick={() => setActiveTab("licenses")} className="bg-red-600 text-white px-12 py-4 font-black uppercase tracking-widest hover:bg-red-500 transition-colors">View Licenses</button>
+             </div>
+          ) : (
+            <>
+              {activeTab === "terminal" && (
+                <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[900px]">
+                  <div className="w-full lg:w-1/4 flex flex-col gap-4">
+                    <div className="flex-1 bg-[#0d0d0d] border border-zinc-800 p-4 overflow-y-auto max-h-[400px] lg:max-h-full scrollbar-hide">
+                      <p className="text-[10px] font-black text-zinc-500 mb-4 border-b border-zinc-800 pb-2 uppercase tracking-widest">Market Feed</p>
+                      <div className="space-y-1">
+                        {stocks.map(s => (
+                          <div key={s.symbol} onClick={() => { setSelectedAsset(s); setInbuiltSignal(null); }} className={`p-3 cursor-pointer border-b border-zinc-900/30 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-2 border-[#00ff41]' : 'hover:bg-zinc-900'}`}>
+                            <span className="font-black text-white text-[11px]">{s.symbol}</span>
+                            <p className={`text-[11px] font-mono font-black ${s.change?.includes('+') ? 'text-[#00ff41]' : 'text-red-500'}`}>${Number(s.price).toFixed(4)}</p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="bg-[#0d0d0d] border border-zinc-800 p-6">
-                   <h3 className="text-zinc-600 font-black uppercase text-[10px] mb-4 tracking-widest border-b border-zinc-800 pb-2">Command Exec</h3>
-                   <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 text-[#00ff41] p-3 font-black outline-none text-xs mb-4 focus:border-[#00ff41]" />
-                   <div className="grid grid-cols-2 gap-2">
-                     <button onClick={() => openPosition('buy')} className="bg-[#00ff41] text-black font-black py-3 uppercase text-[10px] hover:shadow-[0_0_15px_rgba(0,255,65,0.4)] transition-all">Long</button>
-                     <button onClick={() => openPosition('sell')} className="border border-red-500 text-red-500 font-black py-3 uppercase text-[10px] hover:bg-red-900/20 transition-all">Short</button>
-                   </div>
-                </div>
-              </div>
-
-              <div className="w-full lg:w-3/4 flex flex-col gap-4">
-                <div className="bg-black border border-zinc-800 relative h-[500px] lg:h-[750px] w-full min-h-[500px]">
-                  <div className="absolute top-4 left-4 z-10 bg-black/60 p-3 border border-zinc-800 backdrop-blur-md flex items-center gap-3">
-                     <span className="text-[#00ff41] font-black text-[10px] uppercase animate-pulse">● LIVE</span>
-                     <span className="text-white font-black text-xs uppercase">{selectedAsset?.symbol || "SELECT ASSET"}</span>
-                  </div>
-                  <div className="w-full h-full p-2">
-                    {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <div className="w-full h-full flex items-center justify-center text-zinc-800 text-xs font-black tracking-widest uppercase">Initializing Stream...</div>}
-                  </div>
-                </div>
-                <div className="bg-[#0d0d0d] border border-zinc-800 p-6 flex flex-col md:flex-row items-center justify-between gap-10">
-                    <div className="flex-1">
-                      <h3 className="text-[#00ff41] font-black uppercase text-[10px] mb-2 tracking-widest">Neural Math Signal</h3>
-                      <p className="text-[10px] text-zinc-500 uppercase">Computing {selectedAsset?.symbol || 'Global'} Liquidity Pools.</p>
                     </div>
-                    {inbuiltSignal ? (
-                      <div className="flex gap-10 items-center animate-in fade-in">
-                         <div className="text-center">
-                            <p className="text-[8px] text-zinc-500 uppercase mb-1 tracking-widest">Signal</p>
-                            <p className={`text-2xl font-black uppercase ${inbuiltSignal?.signal?.includes('BUY') ? 'text-[#00ff41]' : 'text-red-500'}`}>{inbuiltSignal?.signal}</p>
-                         </div>
-                         <div className="text-center border-l border-zinc-800 pl-10">
-                            <p className="text-[8px] text-zinc-500 uppercase mb-1 tracking-widest">SMA (20)</p>
-                            <p className="text-xl font-black text-white font-mono">${Number(inbuiltSignal?.movingAverage || 0).toFixed(4)}</p>
-                         </div>
-                      </div>
-                    ) : <button onClick={getInbuiltPrediction} className="bg-zinc-900 border border-zinc-700 text-white font-black px-12 py-3 uppercase text-[10px] tracking-widest hover:border-[#00ff41] transition-all">Compute</button>}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "overview" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {stocks.map(s => (
-                <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
-                  <div className="flex justify-between mb-4 items-center">
-                     <span className="text-xs font-black text-zinc-500 group-hover:text-white transition-colors">{s.symbol}</span>
-                     <span className={`text-[10px] font-black px-2 py-1 bg-black border ${s.change?.includes('+') ? 'text-[#00ff41] border-[#00ff41]/30' : 'text-red-500 border-red-500/30'}`}>{s.change}</span>
+                    <div className="bg-[#0d0d0d] border border-zinc-800 p-6">
+                       <h3 className="text-zinc-600 font-black uppercase text-[10px] mb-4 tracking-widest border-b border-zinc-800 pb-2">Command Exec</h3>
+                       <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 text-[#00ff41] p-3 font-black outline-none text-xs mb-4 focus:border-[#00ff41]" />
+                       <div className="grid grid-cols-2 gap-2">
+                         <button onClick={() => openPosition('buy')} className="bg-[#00ff41] text-black font-black py-3 uppercase text-[10px] hover:shadow-[0_0_15px_rgba(0,255,65,0.4)] transition-all">Long</button>
+                         <button onClick={() => openPosition('sell')} className="border border-red-500 text-red-500 font-black py-3 uppercase text-[10px] hover:bg-red-900/20 transition-all">Short</button>
+                       </div>
+                    </div>
                   </div>
-                  <p className="text-3xl font-black tabular-nums tracking-tighter">${Number(s.price).toFixed(4)}</p>
-                </div>
-              ))}
-            </div>
-          )}
 
-          {activeTab === "academy" && (
-            <div className="max-w-5xl bg-[#0d0d0d] border border-[#00ff41] p-6 md:p-10">
-                <h3 className="text-2xl font-black text-white uppercase mb-4 tracking-tighter">Oracle Engine</h3>
-                <div className="flex flex-col md:flex-row gap-4 mb-8">
-                    <input type="text" value={userQuestion} onChange={(e) => setUserQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && runAI()} placeholder="Inquire about market mechanics..." className="flex-1 bg-black border border-zinc-800 text-[#00ff41] p-4 text-xs font-mono outline-none focus:border-[#00ff41]" />
-                    <button onClick={runAI} disabled={isAnalyzing} className="bg-[#00ff41] text-black px-10 py-4 md:py-0 font-black uppercase text-xs disabled:opacity-50 tracking-widest">Ask</button>
+                  <div className="w-full lg:w-3/4 flex flex-col gap-4">
+                    <div className="bg-black border border-zinc-800 relative h-[500px] lg:h-[750px] w-full min-h-[500px]">
+                      <div className="absolute top-4 left-4 z-10 bg-black/60 p-3 border border-zinc-800 backdrop-blur-md flex items-center gap-3">
+                         <span className="text-[#00ff41] font-black text-[10px] uppercase animate-pulse">● LIVE</span>
+                         <span className="text-white font-black text-xs uppercase">{selectedAsset?.symbol || "SELECT ASSET"}</span>
+                      </div>
+                      <div className="w-full h-full p-2">
+                        {selectedAsset ? <CandleChart symbol={selectedAsset.symbol} currentPrice={selectedAsset.price} /> : <div className="w-full h-full flex items-center justify-center text-zinc-800 text-xs font-black tracking-widest uppercase">Initializing Stream...</div>}
+                      </div>
+                    </div>
+                    <div className="bg-[#0d0d0d] border border-zinc-800 p-6 flex flex-col md:flex-row items-center justify-between gap-10">
+                        <div className="flex-1">
+                          <h3 className="text-[#00ff41] font-black uppercase text-[10px] mb-2 tracking-widest">Neural Math Signal</h3>
+                          <p className="text-[10px] text-zinc-500 uppercase">Computing {selectedAsset?.symbol || 'Global'} Liquidity Pools.</p>
+                        </div>
+                        {inbuiltSignal ? (
+                          <div className="flex gap-10 items-center animate-in fade-in">
+                             <div className="text-center">
+                                <p className="text-[8px] text-zinc-500 uppercase mb-1 tracking-widest">Signal</p>
+                                <p className={`text-2xl font-black uppercase ${inbuiltSignal?.signal?.includes('BUY') ? 'text-[#00ff41]' : 'text-red-500'}`}>{inbuiltSignal?.signal}</p>
+                             </div>
+                             <div className="text-center border-l border-zinc-800 pl-10">
+                                <p className="text-[8px] text-zinc-500 uppercase mb-1 tracking-widest">SMA (20)</p>
+                                <p className="text-xl font-black text-white font-mono">${Number(inbuiltSignal?.movingAverage || 0).toFixed(4)}</p>
+                             </div>
+                          </div>
+                        ) : <button onClick={getInbuiltPrediction} className="bg-zinc-900 border border-zinc-700 text-white font-black px-12 py-3 uppercase text-[10px] tracking-widest hover:border-[#00ff41] transition-all">Compute</button>}
+                    </div>
+                  </div>
                 </div>
-                <div className="p-6 md:p-8 min-h-[300px] font-mono text-sm border border-zinc-800 text-[#00ff41] bg-black leading-relaxed">{aiAnalysis || "Ready for inquiry..."}</div>
-            </div>
+              )}
+
+              {activeTab === "overview" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {stocks.map(s => (
+                    <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
+                      <div className="flex justify-between mb-4 items-center">
+                         <span className="text-xs font-black text-zinc-500 group-hover:text-white transition-colors">{s.symbol}</span>
+                         <span className={`text-[10px] font-black px-2 py-1 bg-black border ${s.change?.includes('+') ? 'text-[#00ff41] border-[#00ff41]/30' : 'text-red-500 border-red-500/30'}`}>{s.change}</span>
+                      </div>
+                      <p className="text-3xl font-black tabular-nums tracking-tighter">${Number(s.price).toFixed(4)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === "academy" && (
+                <div className="max-w-5xl bg-[#0d0d0d] border border-[#00ff41] p-6 md:p-10">
+                    <h3 className="text-2xl font-black text-white uppercase mb-4 tracking-tighter">Oracle Engine</h3>
+                    <div className="flex flex-col md:flex-row gap-4 mb-8">
+                        <input type="text" value={userQuestion} onChange={(e) => setUserQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && runAI()} placeholder="Inquire about market mechanics..." className="flex-1 bg-black border border-zinc-800 text-[#00ff41] p-4 text-xs font-mono outline-none focus:border-[#00ff41]" />
+                        <button onClick={runAI} disabled={isAnalyzing} className="bg-[#00ff41] text-black px-10 py-4 md:py-0 font-black uppercase text-xs disabled:opacity-50 tracking-widest">Ask</button>
+                    </div>
+                    <div className="p-6 md:p-8 min-h-[300px] font-mono text-sm border border-zinc-800 text-[#00ff41] bg-black leading-relaxed">{aiAnalysis || "Ready for inquiry..."}</div>
+                </div>
+              )}
+            </>
           )}
 
           {activeTab === "licenses" && (

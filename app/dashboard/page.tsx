@@ -5,7 +5,6 @@ import CandleChart from "../components/CandleChart";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// Comprehensive Global Country List
 const countries = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
@@ -20,7 +19,6 @@ export default function Dashboard() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState("");
   
-  // Legal States
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
@@ -29,22 +27,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Mobile Menu State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // Admin State
   const [adminUsersList, setAdminUsersList] = useState<any[]>([]);
-
   const [tradeAmount, setTradeAmount] = useState<number>(1000);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   
-  // AI States
   const [inbuiltSignal, setInbuiltSignal] = useState<any>(null);
   const [userQuestion, setUserQuestion] = useState("");
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Checkout States
   const [checkoutInfo, setCheckoutInfo] = useState<any>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
@@ -59,7 +51,6 @@ export default function Dashboard() {
       setUser(profile);
       setIsLoggedIn(true);
       
-      // FIXED: Ensures Super Admin isn't blocked from the data stream by a 'none' tier
       if (profile.subscriptionTier !== 'none' || profile.role === 'admin') {
         const mRes = await fetch(`${API_URL}/api/market/stream`, { headers: { "Authorization": `Bearer ${token}` } });
         if (mRes.ok) {
@@ -73,7 +64,6 @@ export default function Dashboard() {
           const aRes = await fetch(`${API_URL}/api/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
           if (aRes.ok) setAdminUsersList(await aRes.json());
       }
-
     } catch (e) { localStorage.removeItem("token"); setIsLoggedIn(false); } 
     finally { setLoading(false); }
   };
@@ -139,8 +129,19 @@ export default function Dashboard() {
       } catch (e) { alert("Error executing ban."); }
   };
 
+  const openPosition = async (side: 'buy' | 'sell') => {
+    if (!selectedAsset || !user) return;
+    try {
+      const res = await fetch(`${API_URL}/api/trade/execute`, {
+        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ symbol: selectedAsset.symbol, amount: tradeAmount, side })
+      });
+      if (res.ok) fetchData();
+      else alert("Transaction Failed. Check Balance/License.");
+    } catch (err) {}
+  };
+
   const getInbuiltPrediction = async () => {
-    // FIXED: Protect against errors while explicitly allowing Admin bypass
     if (!selectedAsset || (user?.subscriptionTier === 'none' && user?.role !== 'admin')) return;
     try {
         const res = await fetch(`${API_URL}/api/ai/inbuilt/predict/${encodeURIComponent(selectedAsset.symbol)}`, {
@@ -206,8 +207,6 @@ export default function Dashboard() {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono p-4">
-        
-        {/* TERMS AND CONDITIONS MODAL */}
         {showTermsModal && (
             <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
                 <div className="bg-[#0d0d0d] border border-[#00ff41] max-w-2xl w-full max-h-[80vh] flex flex-col">
@@ -288,12 +287,10 @@ export default function Dashboard() {
       <Ticker stocks={stocks} />
       <div className="flex flex-1 relative">
         
-        {/* MOBILE MENU OVERLAY */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
 
-        {/* RESPONSIVE SIDEBAR WITH EDTECH SHIELD */}
         <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d0d0d] border-r border-zinc-800 p-8 flex flex-col transform ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}>
           <div className="flex justify-between items-center mb-10">
             <h1 className="text-2xl font-black text-[#00ff41] italic tracking-tighter uppercase">NN-Fintech</h1>
@@ -325,7 +322,6 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* MAIN VIEW */}
         <main className="flex-1 p-4 md:p-10 overflow-y-auto bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#051505] via-[#0a0a0a] to-[#0a0a0a] w-full">
           <header className="flex justify-between items-start md:items-end mb-8 md:mb-10 border-b border-zinc-800 pb-6 md:pb-10">
             <div className="flex items-center gap-4">
@@ -393,9 +389,8 @@ export default function Dashboard() {
                         <div key={s.symbol} onClick={() => {setSelectedAsset(s); setActiveTab("terminal");}} className="bg-[#0f0f0f] border border-zinc-800 p-6 md:p-8 cursor-pointer hover:border-[#00ff41] transition-all group">
                           <div className="flex justify-between mb-4">
                              <span className="text-xs font-black text-zinc-400 group-hover:text-white">{s.symbol}</span>
-                             {s.change && <span className={`text-[10px] font-black ${s.change.includes('+') ? 'text-green-500' : 'text-red-500'}`}>{s.change}</span>}
                           </div>
-                          <p className="text-2xl md:text-3xl font-black tabular-nums tracking-tighter">${s.price.toFixed(2)}</p>
+                          <p className="text-2xl md:text-3xl font-black tabular-nums tracking-tighter">${s.price.toFixed(4)}</p>
                         </div>
                       ))}
                     </div>
@@ -408,7 +403,7 @@ export default function Dashboard() {
                         {stocks.map(s => (
                           <div key={s.symbol} onClick={() => { setSelectedAsset(s); setInbuiltSignal(null); }} className={`p-3 md:p-4 cursor-pointer hover:bg-zinc-900 border-b border-zinc-900 flex justify-between items-center transition-all ${selectedAsset?.symbol === s.symbol ? 'bg-[#00ff41]/10 border-l-4 border-l-[#00ff41]' : ''}`}>
                             <span className="font-black text-white text-xs">{s.symbol}</span>
-                            <span className={`text-[10px] font-mono font-black text-[#00ff41]`}>${s.price.toFixed(2)}</span>
+                            <span className="text-[10px] font-mono font-black text-[#00ff41]">${s.price.toFixed(4)}</span>
                           </div>
                         ))}
                       </div>
@@ -421,13 +416,22 @@ export default function Dashboard() {
 
                       <div className="w-full lg:w-1/5 bg-[#0d0d0d] border border-zinc-800 p-4 md:p-6 flex flex-col justify-start">
                          <h3 className="text-[#00ff41] font-black uppercase text-xs md:text-sm mb-4 border-b border-zinc-800 pb-2">Proprietary Algos</h3>
-                         <button onClick={getInbuiltPrediction} className="w-full bg-zinc-900 border border-zinc-700 text-white font-black py-3 uppercase tracking-widest hover:border-[#00ff41] transition-all text-xs mb-6">Run Math Analysis</button>
+                         
+                         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 block mt-2">Exposure (USDT)</label>
+                         <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(Number(e.target.value))} className="w-full bg-black border border-zinc-800 text-white p-3 font-black outline-none mb-4 focus:border-[#00ff41] text-xs" />
+                         
+                         <div className="flex flex-col gap-2 mb-6">
+                           <button onClick={() => openPosition('buy')} className="w-full bg-[#00ff41] text-black font-black py-3 uppercase tracking-widest hover:shadow-[0_0_15px_rgba(0,255,65,0.4)] transition-all text-[10px]">LONG</button>
+                           <button onClick={() => openPosition('sell')} className="w-full border border-red-500 text-red-500 font-black py-3 uppercase tracking-widest hover:bg-red-900/20 transition-all text-[10px]">SHORT</button>
+                         </div>
+
+                         <button onClick={getInbuiltPrediction} className="w-full bg-zinc-900 border border-zinc-700 text-white font-black py-3 uppercase tracking-widest hover:border-[#00ff41] transition-all text-[10px] mb-4">Run Math Analysis</button>
                          
                          {inbuiltSignal && (
                              <div className="bg-black border border-[#00ff41] p-4 text-center">
                                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Educational Signal</p>
-                                 <p className={`text-lg md:text-xl font-black uppercase ${inbuiltSignal.signal.includes('BUY') ? 'text-[#00ff41]' : (inbuiltSignal.signal.includes('SELL') ? 'text-red-500' : 'text-yellow-500')}`}>{inbuiltSignal.signal}</p>
-                                 <p className="text-xs text-zinc-400 mt-2">SMA: ${inbuiltSignal.movingAverage}</p>
+                                 <p className={`text-lg md:text-xl font-black uppercase ${inbuiltSignal?.signal?.includes('BUY') ? 'text-[#00ff41]' : (inbuiltSignal?.signal?.includes('SELL') ? 'text-red-500' : 'text-yellow-500')}`}>{inbuiltSignal?.signal}</p>
+                                 <p className="text-[10px] text-zinc-400 mt-2">SMA: ${inbuiltSignal?.movingAverage}</p>
                              </div>
                          )}
                       </div>

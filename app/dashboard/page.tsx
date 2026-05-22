@@ -265,8 +265,8 @@ export default function UnifiedSystemPortal() {
         </div>
       </div>
 
-      <header className="border-b border-gray-900 p-4 flex justify-between items-center bg-black">
-        <div className="flex items-center space-x-6">
+      <header className="border-b border-gray-900 p-4 flex flex-col md:flex-row justify-between items-center gap-4 bg-black">
+        <div className="flex flex-wrap items-center justify-center gap-2 md:gap-6">
           <span className="text-green-500 font-bold tracking-widest text-sm">NN-FINTECH LAYER 1</span>
           <span className="text-xs text-gray-500 bg-gray-950 px-3 py-1 border border-gray-800">AI CLEARANCE: {operatesPremium ? "AUTHORIZED" : "LEVEL 1 FREE"}</span>
           <span className="text-xs text-green-400 bg-gray-950 px-3 py-1 border border-gray-800">SIMULATED BAL: ${user?.demoBalance?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -274,16 +274,16 @@ export default function UnifiedSystemPortal() {
         <button onClick={logout} className="text-xs border border-red-900 text-red-500 px-3 py-1 hover:bg-red-950/30">DISCONNECT_NODE</button>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-64 border-r border-gray-900 bg-black p-4 flex flex-col space-y-1">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-900 bg-black p-4 flex flex-row md:flex-col space-x-2 md:space-x-0 md:space-y-1 overflow-x-auto shrink-0 z-10">
           <button onClick={() => setActiveTab("terminal")} className={`text-left p-3 text-xs tracking-wider border ${activeTab === "terminal" ? "border-green-600 text-green-400 bg-green-950/10" : "border-transparent text-gray-600 hover:text-gray-400"}`}>&gt; TRADING_TERMINAL</button>
           <button onClick={() => setActiveTab("academy")} className={`text-left p-3 text-xs tracking-wider border ${activeTab === "academy" ? "border-green-600 text-green-400 bg-green-950/10" : "border-transparent text-gray-600 hover:text-gray-400"}`}>&gt; INTELLIGENCE_ORACLE</button>
         </aside>
 
-        <main className="flex-1 p-6 overflow-y-auto bg-neutral-950">
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto bg-neutral-950">
           {activeTab === "terminal" && (
-            <div className="grid grid-cols-3 gap-6 h-full min-h-[500px]">
-              <div className="col-span-2 border border-gray-900 bg-black p-4 flex flex-col">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-[500px]">
+              <div className="lg:col-span-2 border border-gray-900 bg-black p-4 flex flex-col">
                 <div className="flex justify-between items-center border-b border-gray-900 pb-2 mb-4">
                   <span className="text-xs font-bold text-gray-400">MARKET DATA ASSETS</span>
                   {selectedAsset && <span className="text-xs text-green-500 font-bold">{selectedAsset.symbol} // ${selectedAsset.price}</span>}

@@ -27,7 +27,6 @@ export default function UnifiedSystemPortal() {
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [targetBanEmail, setTargetBanEmail] = useState("");
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // --- ADVANCED TRADING STATES ---
@@ -475,7 +474,7 @@ export default function UnifiedSystemPortal() {
                 </>
               ) : (
                 <div className="flex-1 border border-purple-900/40 bg-black p-8 flex flex-col items-center justify-center text-center space-y-4">
-                  <h3 className="text-purple-400 text-sm font-bold tracking-widest\">[ COGNITIVE MATRIX GATED ]</h3>
+                  <h3 className="text-purple-400 text-sm font-bold tracking-widest">[ COGNITIVE MATRIX GATED ]</h3>
                   <p className="text-xs text-gray-500 max-w-md">Direct access queries to the Gemini neural execution framework require Level 2 clearance. Subscribe via NOWPayments crypto tunnel to launch features instantly.</p>
                   <button onClick={initializeCryptoCheckout} disabled={isCheckoutLoading} className="px-6 py-3 bg-purple-950 text-purple-400 border border-purple-600 font-bold hover:bg-purple-500 hover:text-black text-xs tracking-wider">
                     {isCheckoutLoading ? "PREPARING PAY MATRIX..." : "ACTIVATE QUANT ORACLE ($5.00 / MO via CRYPTO)"}

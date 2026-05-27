@@ -31,6 +31,8 @@ export default function UnifiedSystemPortal() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
+  const [chartHistory, setChartHistory] = useState<{ [key: string]: number[] }>({});
+
   useEffect(() => {
     checkSession();
   }, []);
@@ -43,6 +45,32 @@ export default function UnifiedSystemPortal() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (marketAssets.length === 0) return;
+    setChartHistory(prev => {
+      const updated = { ...prev };
+      marketAssets.forEach(asset => {
+        if (!updated[asset.symbol]) {
+          updated[asset.symbol] = Array.from({ length: 15 }, (_, i) => asset.price * (1 + (Math.random() * 0.004 - 0.002)));
+        }
+        const historicalPoints = [...updated[asset.symbol]];
+        if (historicalPoints[historicalPoints.length - 1] !== asset.price) {
+          historicalPoints.push(asset.price);
+          if (historicalPoints.length > 30) historicalPoints.shift();
+          updated[asset.symbol] = historicalPoints;
+        }
+      });
+      return updated;
+    });
+  }, [marketAssets]);
+
+  useEffect(() => {
+    if (selectedAsset && marketAssets.length > 0) {
+      const freshData = marketAssets.find(a => a.symbol === selectedAsset.symbol);
+      if (freshData) setSelectedAsset(freshData);
+    }
+  }, [marketAssets, selectedAsset]);
+
   const checkSession = async () => {
     const token = localStorage.getItem("token");
     if (!token) { setIsInitializing(false); return; }
@@ -54,9 +82,7 @@ export default function UnifiedSystemPortal() {
       } else {
         localStorage.removeItem("token");
       }
-    } catch (e) { 
-      console.error("Session sync failed."); 
-    }
+    } catch (e) { }
     setIsInitializing(false);
   };
 
@@ -79,10 +105,7 @@ export default function UnifiedSystemPortal() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const { ok, data } = await executeAuthCall("login", { email, password });
-    if (ok) { 
-      localStorage.setItem("token", data.token); 
-      checkSession(); 
-    }
+    if (ok) { localStorage.setItem("token", data.token); checkSession(); }
     else if (data?.error === "Verify email first.") setAuthMode("verify");
     else setAuthError(data?.error || "Login rejected.");
   };
@@ -90,20 +113,14 @@ export default function UnifiedSystemPortal() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const { ok, data } = await executeAuthCall("register", { email, password, fullName, country });
-    if (ok) { 
-      setAuthSuccess("Verification transmission dispatched."); 
-      setAuthMode("verify"); 
-    }
+    if (ok) { setAuthSuccess("Verification transmission dispatched."); setAuthMode("verify"); }
     else setAuthError(data?.error || "Registration rejected.");
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     const { ok, data } = await executeAuthCall("verify", { email, otp });
-    if (ok) { 
-      localStorage.setItem("token", data.token); 
-      checkSession(); 
-    }
+    if (ok) { localStorage.setItem("token", data.token); checkSession(); }
     else setAuthError(data?.error || "Verification failed.");
   };
 
@@ -126,14 +143,9 @@ export default function UnifiedSystemPortal() {
     try {
       const res = await fetch(`${API_URL}/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
       const data = await res.json();
-      if (res.ok) {
-        setAlgoSignal(data);
-      } else if (data.paymentRequired) {
-        setAlgoSignal({ locked: true });
-      }
-    } catch (e) {
-      setAlgoSignal({ locked: true });
-    }
+      if (res.ok) setAlgoSignal(data);
+      else if (data.paymentRequired) setAlgoSignal({ locked: true });
+    } catch (e) { setAlgoSignal({ locked: true }); }
   };
 
   const handleExecuteTrade = async (side: "buy" | "sell") => {
@@ -145,11 +157,7 @@ export default function UnifiedSystemPortal() {
       });
       const data = await res.json();
       if (res.ok) { 
-        setUser((prev: any) => ({ 
-            ...prev, 
-            demoBalance: data.newBalance,
-            activePositions: [...(prev.activePositions || []), data.position] 
-        })); 
+        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: [...(prev.activePositions || []), data.position] })); 
         setStopLoss(""); setTakeProfit("");
       } else alert(`Denied: ${data.error}`);
     } catch (e) {}
@@ -163,11 +171,7 @@ export default function UnifiedSystemPortal() {
       });
       const data = await res.json();
       if (res.ok) {
-        setUser((prev: any) => ({
-            ...prev,
-            demoBalance: data.newBalance,
-            activePositions: prev.activePositions.filter((p: any) => p.id !== positionId)
-        }));
+        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: prev.activePositions.filter((p: any) => p.id !== positionId) }));
       }
     } catch (e) {}
   };
@@ -179,14 +183,9 @@ export default function UnifiedSystemPortal() {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` }
       });
       const data = await res.json();
-      if (res.ok && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        alert(data.error || "Could not launch processing module.");
-      }
-    } catch (e) {
-      alert("Billing engine endpoint unreachable.");
-    }
+      if (res.ok && data.checkoutUrl) window.location.href = data.checkoutUrl;
+      else alert(data.error || "Could not launch processing module.");
+    } catch (e) { alert("Billing engine endpoint unreachable."); }
     setIsCheckoutLoading(false);
   };
 
@@ -199,15 +198,26 @@ export default function UnifiedSystemPortal() {
         body: JSON.stringify({ question: aiQuestion })
       });
       const data = await res.json(); 
-      if (res.ok) {
-        setAiResponse(data.tutorResponse);
-      } else if (data.paymentRequired) {
-        setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
-      }
-    } catch (error) { 
-      setAiResponse("[CRITICAL ERROR] Core connection failed."); 
-    }
+      if (res.ok) setAiResponse(data.tutorResponse);
+      else if (data.paymentRequired) setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
+    } catch (error) { setAiResponse("[CRITICAL ERROR] Core connection failed."); }
     setIsAiLoading(false);
+  };
+
+  const renderChartPath = () => {
+    if (!selectedAsset || !chartHistory[selectedAsset.symbol]) return "";
+    const points = chartHistory[selectedAsset.symbol];
+    if (points.length < 2) return "";
+    const max = Math.max(...points) * 1.0005;
+    const min = Math.min(...points) * 0.9995;
+    const range = max - min === 0 ? 1 : max - min;
+    const width = 500;
+    const height = 180;
+    return points.map((val, idx) => {
+      const x = (idx / (points.length - 1)) * width;
+      const y = height - ((val - min) / range) * height;
+      return `${idx === 0 ? "M" : "L"} ${x} ${y}`;
+    }).join(" ");
   };
 
   if (isInitializing) return <div className="min-h-screen bg-black text-green-500 flex items-center justify-center font-mono text-xs tracking-widest animate-pulse">CONNECTING TO COGNITIVE CORE...</div>;
@@ -218,39 +228,25 @@ export default function UnifiedSystemPortal() {
         <div className="border border-green-900 bg-[#050505] p-8 w-full max-w-md shadow-[0_0_20px_rgba(0,255,0,0.05)]">
           <h1 className="text-xl font-bold tracking-widest mb-2 text-center">NN-FINTECH</h1>
           <h2 className="text-xs text-gray-500 tracking-widest mb-6 text-center border-b border-gray-900 pb-4">[{authMode.toUpperCase()}_GATEWAY]</h2>
-          
           {authError && <div className="mb-4 p-3 border border-red-900 text-red-500 bg-red-950/20 text-xs tracking-wider text-center">{authError}</div>}
           {authSuccess && <div className="mb-4 p-3 border border-green-900 text-green-400 bg-green-950/20 text-xs tracking-wider text-center">{authSuccess}</div>}
-
           {authMode === "login" && (
             <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-[10px] text-gray-500 mb-1 tracking-widest">IDENTIFIER (EMAIL)</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" />
-              </div>
-              <div className="relative">
-                <label className="block text-[10px] text-gray-500 mb-1 tracking-widest flex justify-between">PASSPHRASE</label>
-                <input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none pr-16" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-7 text-[10px] text-gray-500 hover:text-green-400 font-bold bg-black px-1">{showPassword ? "[HIDE]" : "[SHOW]"}</button>
-              </div>
+              <div><label className="block text-[10px] text-gray-500 mb-1 tracking-widest">IDENTIFIER (EMAIL)</label><input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" /></div>
+              <div className="relative"><label className="block text-[10px] text-gray-500 mb-1 tracking-widest flex justify-between">PASSPHRASE</label><input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none pr-16" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-7 text-[10px] text-gray-500 hover:text-green-400 font-bold bg-black px-1">{showPassword ? "[HIDE]" : "[SHOW]"}</button></div>
               <button type="submit" disabled={authLoading} className="w-full bg-green-950/20 border border-green-700 text-green-400 hover:bg-green-500 hover:text-black transition-colors p-3 text-xs font-bold tracking-widest mt-4">{authLoading ? "AUTHENTICATING..." : "INITIATE HANDSHAKE"}</button>
               <button type="button" onClick={() => switchAuthMode("register")} className="w-full border border-gray-900 text-gray-500 hover:text-green-400 hover:border-green-900 transition-colors p-3 text-xs tracking-wider mt-2 block">[ PROVISION NEW ACCOUNT ]</button>
             </form>
           )}
-
           {authMode === "register" && (
             <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-[10px] text-gray-500 mb-1">FULL NAME</label><input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" /></div>
-                <div><label className="block text-[10px] text-gray-500 mb-1">COUNTRY</label><input type="text" required value={country} onChange={e => setCountry(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" /></div>
-              </div>
+              <div className="grid grid-cols-2 gap-4"><div><label className="block text-[10px] text-gray-500 mb-1">FULL NAME</label><input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" /></div><div><label className="block text-[10px] text-gray-500 mb-1">COUNTRY</label><input type="text" required value={country} onChange={e => setCountry(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" /></div></div>
               <div><label className="block text-[10px] text-gray-500 mb-1">EMAIL ADDRESS</label><input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none" /></div>
               <div className="relative"><label className="block text-[10px] text-gray-500 mb-1">PASSPHRASE</label><input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-gray-800 p-2 text-white focus:outline-none focus:border-green-600 text-sm rounded-none pr-16" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-7 text-[10px] text-gray-500 hover:text-green-400 font-bold bg-black px-1">{showPassword ? "[HIDE]" : "[SHOW]"}</button></div>
               <button type="submit" disabled={authLoading} className="w-full bg-green-950/20 border border-green-700 text-green-400 hover:bg-green-500 hover:text-black p-3 text-xs font-bold tracking-widest mt-4">{authLoading ? "PROVISIONING..." : "GENERATE IDENTITY"}</button>
               <button type="button" onClick={() => switchAuthMode("login")} className="w-full text-xs text-gray-500 hover:text-gray-300 mt-4 tracking-wider text-center block">[ ABORT & RETURN ]</button>
             </form>
           )}
-
           {authMode === "verify" && (
             <form onSubmit={handleVerify} className="space-y-4">
               <div className="text-xs text-gray-400 text-center mb-6 leading-relaxed bg-neutral-900/50 p-4 border border-neutral-800">OTP tracking packet dispatched to <span className="text-green-500 block mt-2 font-bold">{email}</span></div>
@@ -268,35 +264,18 @@ export default function UnifiedSystemPortal() {
 
   return (
     <div className="min-h-screen bg-[#070707] text-gray-300 font-mono flex flex-col overflow-hidden">
-      
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes marquee {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
-        }
-      `}} />
-
+      <style dangerouslySetInnerHTML={{__html: `@keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }`}} />
       <div className="w-full bg-[#0d0d0d] border-b border-gray-900 py-1.5 overflow-hidden relative flex items-center">
-        <div 
-          className="flex whitespace-nowrap gap-10 text-[11px]"
-          style={{
-            display: 'inline-flex',
-            whiteSpace: 'nowrap',
-            animation: 'marquee 30s linear infinite'
-          }}
-        >
+        <div className="flex whitespace-nowrap gap-10 text-[11px]" style={{ display: 'inline-flex', whiteSpace: 'nowrap', animation: 'marquee 30s linear infinite' }}>
           {marketAssets.length > 0 ? (
             [...marketAssets, ...marketAssets].map((asset, i) => (
               <span key={i} className="inline-flex items-center space-x-2">
-                <span className="text-gray-500 font-bold">[{asset.type}]</span>
-                <span className="text-white font-bold">{asset.symbol}</span>
+                <span className="text-gray-500 font-bold">[{asset.type}]</span><span className="text-white font-bold">{asset.symbol}</span>
                 <span className="text-gray-300">${asset.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                 <span className={asset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{asset.change}</span>
               </span>
             ))
-          ) : (
-            <span className="text-gray-600 tracking-widest text-xs">SYNCHRONIZING SYSTEM INSTRUMENT RATES...</span>
-          )}
+          ) : (<span className="text-gray-600 tracking-widest text-xs">SYNCHRONIZING SYSTEM INSTRUMENT RATES...</span>)}
         </div>
       </div>
 
@@ -319,12 +298,38 @@ export default function UnifiedSystemPortal() {
           {activeTab === "terminal" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-[500px]">
               <div className="lg:col-span-2 flex flex-col space-y-4">
+                
+                {/* ADVANCED VECTOR CHART ENGINE */}
+                <div className="border border-gray-900 bg-black p-4">
+                  <div className="flex justify-between items-center border-b border-gray-900 pb-2 mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+                      <span className="text-xs font-bold text-gray-400 uppercase">{selectedAsset ? selectedAsset.symbol : "MATRIX_NODE"} VECTOR GRAPH</span>
+                    </div>
+                    {selectedAsset && (
+                      <div className="text-xs font-mono space-x-3">
+                        <span className="text-gray-500">LIVE: <span className="text-white">${selectedAsset.price.toFixed(2)}</span></span>
+                        <span className={selectedAsset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{selectedAsset.change}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="w-full bg-[#050505] border border-neutral-900 h-48 relative flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 pointer-events-none opacity-20">
+                      {Array.from({ length: 24 }).map((_, i) => <div key={i} className="border-t border-l border-neutral-800 w-full h-full" />)}
+                    </div>
+                    {selectedAsset && chartHistory[selectedAsset.symbol]?.length > 1 ? (
+                      <svg className="w-full h-full p-2 overflow-visible" viewBox="0 0 500 180" preserveAspectRatio="none">
+                        <path d={renderChartPath()} fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                      </svg>
+                    ) : (<span className="text-neutral-700 text-xs tracking-widest animate-pulse">MAP INTEGRATION STREAMING...</span>)}
+                  </div>
+                </div>
+
                 <div className="border border-gray-900 bg-black p-4 flex flex-col">
                   <div className="flex justify-between items-center border-b border-gray-900 pb-2 mb-4">
                     <span className="text-xs font-bold text-gray-400">MARKET DATA ASSETS</span>
-                    {selectedAsset && <span className="text-xs text-green-500 font-bold">{selectedAsset.symbol} // ${selectedAsset.price.toFixed(2)}</span>}
                   </div>
-                  <div className="overflow-y-auto max-h-[180px] space-y-1 pr-2">
+                  <div className="overflow-y-auto max-h-[150px] space-y-1 pr-2">
                     {marketAssets.map(asset => (
                       <div key={asset.symbol} onClick={() => { setSelectedAsset(asset); fetchPredictiveSignal(asset.symbol); }} className={`flex justify-between p-2 text-xs cursor-pointer border ${selectedAsset?.symbol === asset.symbol ? "border-green-800 bg-neutral-900" : "border-transparent hover:bg-neutral-900/50"}`}>
                         <span className="text-gray-400 font-bold">{asset.symbol} <span className="text-[9px] text-gray-600">({asset.type})</span></span>
@@ -336,7 +341,7 @@ export default function UnifiedSystemPortal() {
 
                 <div className="border border-gray-900 bg-black p-4">
                   <h3 className="text-xs font-bold text-gray-400 border-b border-gray-900 pb-2 mb-2">ACTIVE POSITIONS</h3>
-                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
                     {(!user?.activePositions || user.activePositions.length === 0) ? (
                       <p className="text-[10px] text-gray-600 italic">No open orders.</p>
                     ) : (
@@ -373,21 +378,12 @@ export default function UnifiedSystemPortal() {
               <div className="border border-gray-900 bg-black p-4 flex flex-col justify-between">
                 <div>
                   <h3 className="text-xs font-bold text-gray-400 border-b border-gray-900 pb-2 mb-4">ORDER EXECUTION</h3>
-                  
                   <label className="text-[10px] text-gray-500 block mb-1">POSITION SIZE (USD)</label>
                   <input type="number" value={tradeAmount} onChange={e => setTradeAmount(e.target.value)} className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white mb-3 focus:outline-none focus:border-green-600 rounded-none" />
-                  
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div>
-                      <label className="text-[10px] text-red-500 block mb-1">STOP LOSS (PRICE)</label>
-                      <input type="number" value={stopLoss} onChange={e => setStopLoss(e.target.value)} placeholder="0.00" className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white focus:outline-none focus:border-red-600 rounded-none" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-green-500 block mb-1">TAKE PROFIT (PRICE)</label>
-                      <input type="number" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} placeholder="0.00" className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white focus:outline-none focus:border-green-600 rounded-none" />
-                    </div>
+                    <div><label className="text-[10px] text-red-500 block mb-1">STOP LOSS (PRICE)</label><input type="number" value={stopLoss} onChange={e => setStopLoss(e.target.value)} placeholder="0.00" className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white focus:outline-none focus:border-red-600 rounded-none" /></div>
+                    <div><label className="text-[10px] text-green-500 block mb-1">TAKE PROFIT (PRICE)</label><input type="number" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} placeholder="0.00" className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white focus:outline-none focus:border-green-600 rounded-none" /></div>
                   </div>
-
                   <div className="border border-neutral-900 p-3 bg-neutral-950 mb-4 text-[11px] mt-4">
                     <p className="text-purple-400 font-bold mb-2">QUANT ALGO TELEMETRY</p>
                     {algoSignal?.locked ? (
@@ -398,13 +394,8 @@ export default function UnifiedSystemPortal() {
                         </button>
                       </div>
                     ) : algoSignal ? (
-                      <div className="space-y-1">
-                        <p>PREDICTION: <span className="text-green-400 font-bold">{algoSignal.signal}</span></p>
-                        <p>MOVING AVERAGE: <span>${algoSignal.movingAverage}</span></p>
-                      </div>
-                    ) : (
-                      <p className="text-gray-600 text-[10px]">Select an asset matrix above to test node output.</p>
-                    )}
+                      <div className="space-y-1"><p>PREDICTION: <span className="text-green-400 font-bold">{algoSignal.signal}</span></p><p>MOVING AVERAGE: <span>${algoSignal.movingAverage}</span></p></div>
+                    ) : (<p className="text-gray-600 text-[10px]">Select an asset matrix above to test node output.</p>)}
                   </div>
                 </div>
                 
@@ -419,7 +410,6 @@ export default function UnifiedSystemPortal() {
           {activeTab === "academy" && (
             <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-180px)]">
               <h2 className="text-xs text-green-500 mb-4 font-bold tracking-widest">QUANTITATIVE COGNITIVE LAYER</h2>
-              
               {operatesPremium ? (
                 <>
                   <div className="flex-1 border border-gray-900 bg-black p-4 mb-4 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-gray-400">{aiResponse || "[Pipeline active. Inquire structural patterns...]"}</div>

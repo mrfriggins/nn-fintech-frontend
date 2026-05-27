@@ -31,6 +31,7 @@ export default function UnifiedSystemPortal() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
+  // CHART STATE
   const [chartHistory, setChartHistory] = useState<{ [key: string]: number[] }>({});
   const [chartMode, setChartMode] = useState<"line" | "candle">("candle");
 
@@ -233,29 +234,33 @@ export default function UnifiedSystemPortal() {
     const height = 180;
     const candleWidth = width / Math.max(points.length, 10) * 0.5;
   
-    return points.map((val, idx) => {
-      if (idx === 0) return null;
-      const open = points[idx - 1];
-      const close = val;
-      const isUp = close >= open;
-      const color = isUp ? "#22c55e" : "#ef4444"; 
+    return (
+      <g>
+        {points.map((val, idx) => {
+          if (idx === 0) return null;
+          const open = points[idx - 1];
+          const close = val;
+          const isUp = close >= open;
+          const color = isUp ? "#22c55e" : "#ef4444"; 
+          
+          const high = Math.max(open, close) + (range * 0.05 * Math.random());
+          const low = Math.min(open, close) - (range * 0.05 * Math.random());
       
-      const high = Math.max(open, close) + (range * 0.05 * Math.random());
-      const low = Math.min(open, close) - (range * 0.05 * Math.random());
-  
-      const x = (idx / (points.length - 1)) * width;
-      const yOpen = height - ((open - min) / range) * height;
-      const yClose = height - ((close - min) / range) * height;
-      const yHigh = height - ((high - min) / range) * height;
-      const yLow = height - ((low - min) / range) * height;
-  
-      return (
-        <g key={idx}>
-          <line x1={x} y1={yHigh} x2={x} y2={yLow} stroke={color} strokeWidth="1" />
-          <rect x={x - candleWidth / 2} y={Math.min(yOpen, yClose)} width={candleWidth} height={Math.max(Math.abs(yOpen - yClose), 1)} fill={color} />
-        </g>
-      );
-    });
+          const x = (idx / (points.length - 1)) * width;
+          const yOpen = height - ((open - min) / range) * height;
+          const yClose = height - ((close - min) / range) * height;
+          const yHigh = height - ((high - min) / range) * height;
+          const yLow = height - ((low - min) / range) * height;
+      
+          return (
+            <g key={idx}>
+              <line x1={x} y1={yHigh} x2={x} y2={yLow} stroke={color} strokeWidth="1" />
+              <rect x={x - candleWidth / 2} y={Math.min(yOpen, yClose)} width={candleWidth} height={Math.max(Math.abs(yOpen - yClose), 1)} fill={color} />
+            </g>
+          );
+        })}
+      </g>
+    );
   };
 
   if (isInitializing) return <div className="min-h-screen bg-black text-green-500 flex items-center justify-center font-mono text-xs tracking-widest animate-pulse">CONNECTING TO COGNITIVE CORE...</div>;
@@ -301,9 +306,9 @@ export default function UnifiedSystemPortal() {
   const operatesPremium = user?.subscriptionTier === "ai_5" || isAdmin;
 
   return (
-    <div className="min-h-screen bg-[#070707] text-gray-300 font-mono flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-[#070707] text-gray-300 font-mono flex flex-col overflow-hidden pb-14 md:pb-0 relative">
       <style dangerouslySetInnerHTML={{__html: `@keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }`}} />
-      <div className="w-full bg-[#0d0d0d] border-b border-gray-900 py-1.5 overflow-hidden relative flex items-center">
+      <div className="w-full bg-[#0d0d0d] border-b border-gray-900 py-1.5 overflow-hidden relative flex items-center z-20">
         <div className="flex whitespace-nowrap gap-10 text-[11px]" style={{ display: 'inline-flex', whiteSpace: 'nowrap', animation: 'marquee 30s linear infinite' }}>
           {marketAssets.length > 0 ? (
             [...marketAssets, ...marketAssets].map((asset, i) => (
@@ -317,7 +322,7 @@ export default function UnifiedSystemPortal() {
         </div>
       </div>
 
-      <header className="border-b border-gray-900 p-2 md:p-4 flex flex-col md:flex-row justify-between items-center gap-2 md:gap-4 bg-black z-20">
+      <header className="border-b border-gray-900 p-2 md:p-4 flex flex-col md:flex-row justify-between items-center gap-2 md:gap-4 bg-black z-20 relative">
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-6 w-full md:w-auto">
           <span className="text-green-500 font-bold tracking-widest text-[10px] md:text-sm w-full text-center md:w-auto">NN-FINTECH LAYER 1</span>
           <span className="text-[9px] md:text-xs text-gray-500 bg-gray-950 px-2 py-1 border border-gray-800">AI: {operatesPremium ? "AUTH" : "LVL 1"}</span>
@@ -326,13 +331,13 @@ export default function UnifiedSystemPortal() {
         <button onClick={logout} className="text-[9px] md:text-xs border border-red-900 text-red-500 px-3 py-1 hover:bg-red-950/30 w-full md:w-auto mt-2 md:mt-0">DISCONNECT_NODE</button>
       </header>
 
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden relative pb-14 md:pb-0">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden relative">
         <aside className="fixed bottom-0 left-0 w-full md:relative md:w-64 border-t md:border-t-0 md:border-r border-gray-900 bg-black p-2 md:p-4 flex flex-row md:flex-col justify-around md:justify-start space-x-2 md:space-x-0 md:space-y-1 overflow-x-auto shrink-0 z-50">
           <button onClick={() => setActiveTab("terminal")} className={`flex-1 md:flex-none text-center md:text-left p-3 text-[10px] md:text-xs tracking-wider border ${activeTab === "terminal" ? "border-green-600 text-green-400 bg-green-950/10" : "border-transparent text-gray-600 hover:text-gray-400"}`}>[ TRADING_TERMINAL ]</button>
           <button onClick={() => setActiveTab("academy")} className={`flex-1 md:flex-none text-center md:text-left p-3 text-[10px] md:text-xs tracking-wider border ${activeTab === "academy" ? "border-green-600 text-green-400 bg-green-950/10" : "border-transparent text-gray-600 hover:text-gray-400"}`}>[ INTEL_ORACLE ]</button>
         </aside>
 
-        <main className="flex-1 p-2 md:p-6 overflow-y-auto bg-neutral-950 h-full">
+        <main className="flex-1 p-2 md:p-6 overflow-y-auto bg-neutral-950 h-full relative z-10">
           {activeTab === "terminal" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-[500px]">
               <div className="lg:col-span-2 flex flex-col space-y-4">
@@ -348,7 +353,7 @@ export default function UnifiedSystemPortal() {
                     <div className="flex items-center space-x-4">
                       <button 
                         onClick={() => setChartMode(prev => prev === "line" ? "candle" : "line")} 
-                        className="text-[10px] bg-gray-900 hover:bg-white hover:text-black border border-gray-700 px-2 py-1 transition-colors"
+                        className="text-[10px] bg-gray-900 hover:bg-white hover:text-black border border-gray-700 px-2 py-1 transition-colors font-bold text-white"
                       >
                         MODE: [{chartMode.toUpperCase()}]
                       </button>
@@ -366,7 +371,7 @@ export default function UnifiedSystemPortal() {
                       {Array.from({ length: 24 }).map((_, i) => <div key={i} className="border-t border-l border-neutral-800 w-full h-full" />)}
                     </div>
                     {selectedAsset && chartHistory[selectedAsset.symbol]?.length > 1 ? (
-                      <svg className="w-full h-full p-2 overflow-visible" viewBox="0 0 500 180" preserveAspectRatio="none">
+                      <svg className="w-full h-full p-2 overflow-visible relative z-10" viewBox="0 0 500 180" preserveAspectRatio="none">
                         {chartMode === "line" ? (
                           <path d={renderChartPath()} fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
                         ) : (

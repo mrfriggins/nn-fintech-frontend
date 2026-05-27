@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from "react";
 
+type ChartCandle = {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
 export default function UnifiedSystemPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -32,7 +39,7 @@ export default function UnifiedSystemPortal() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // CHART STATE
-  const [chartHistory, setChartHistory] = useState<{ [key: string]: number[] }>({});
+  const [chartHistory, setChartHistory] = useState<{ [key: string]: ChartCandle[] }>({});
   const [chartMode, setChartMode] = useState<"line" | "candle">("candle");
 
   useEffect(() => {
@@ -53,13 +60,28 @@ export default function UnifiedSystemPortal() {
       const updated = { ...prev };
       marketAssets.forEach(asset => {
         if (!updated[asset.symbol]) {
-          updated[asset.symbol] = Array.from({ length: 15 }, (_, i) => asset.price * (1 + (Math.random() * 0.004 - 0.002)));
+          let lastClose = asset.price * (1 + (Math.random() * 0.01 - 0.005));
+          updated[asset.symbol] = Array.from({ length: 15 }, () => {
+            const open = lastClose;
+            const close = open * (1 + (Math.random() * 0.006 - 0.003));
+            const wick = Math.max(Math.abs(close - open), asset.price * 0.0008);
+            const high = Math.max(open, close) + wick * (0.4 + Math.random() * 0.6);
+            const low = Math.min(open, close) - wick * (0.4 + Math.random() * 0.6);
+            lastClose = close;
+            return { open, high, low, close };
+          });
         }
-        const historicalPoints = [...updated[asset.symbol]];
-        if (historicalPoints[historicalPoints.length - 1] !== asset.price) {
-          historicalPoints.push(asset.price);
-          if (historicalPoints.length > 30) historicalPoints.shift();
-          updated[asset.symbol] = historicalPoints;
+        const historicalCandles = [...updated[asset.symbol]];
+        const lastCandle = historicalCandles[historicalCandles.length - 1];
+        if (!lastCandle || lastCandle.close !== asset.price) {
+          const open = lastCandle?.close ?? asset.price;
+          const close = asset.price;
+          const wick = Math.max(Math.abs(close - open), asset.price * 0.0008);
+          const high = Math.max(open, close) + wick * 0.6;
+          const low = Math.min(open, close) - wick * 0.6;
+          historicalCandles.push({ open, high, low, close });
+          if (historicalCandles.length > 30) historicalCandles.shift();
+          updated[asset.symbol] = historicalCandles;
         }
       });
       return updated;
@@ -208,7 +230,7 @@ export default function UnifiedSystemPortal() {
 
   const renderChartPath = () => {
     if (!selectedAsset || !chartHistory[selectedAsset.symbol]) return "";
-    const points = chartHistory[selectedAsset.symbol];
+    const points = chartHistory[selectedAsset.symbol].map(candle => candle.close);
     if (points.length < 2) return "";
     const max = Math.max(...points) * 1.0005;
     const min = Math.min(...points) * 0.9995;
@@ -222,35 +244,26 @@ export default function UnifiedSystemPortal() {
     }).join(" ");
   };
 
-  const renderCandles = () => {const renderCandles = () => {
-    if (!selectedAsset || !chartHistory[selectedAsset.symbol]) {
-      console.log("DEBUG: Waiting for chart data..."); // ADD THIS
-      return <text x="50" y="50" fill="white">AWAITING DATA...</text>; // ADD THIS
-    }
+  const renderCandles = () => {
     if (!selectedAsset || !chartHistory[selectedAsset.symbol]) return null;
-    const points = chartHistory[selectedAsset.symbol];
-    if (points.length < 2) return null;
+    const candles = chartHistory[selectedAsset.symbol];
+    if (candles.length < 2) return null;
   
-    const max = Math.max(...points) * 1.0005;
-    const min = Math.min(...points) * 0.9995;
+    const max = Math.max(...candles.map(candle => candle.high)) * 1.0005;
+    const min = Math.min(...candles.map(candle => candle.low)) * 0.9995;
     const range = max - min === 0 ? 1 : max - min;
     const width = 500;
     const height = 180;
-    const candleWidth = width / Math.max(points.length, 10) * 0.5;
+    const candleWidth = width / Math.max(candles.length, 10) * 0.55;
   
     return (
       <g>
-        {points.map((val, idx) => {
-          if (idx === 0) return null;
-          const open = points[idx - 1];
-          const close = val;
+        {candles.map((candle, idx) => {
+          const { open, close, high, low } = candle;
           const isUp = close >= open;
           const color = isUp ? "#22c55e" : "#ef4444"; 
-          
-          const high = Math.max(open, close) + (range * 0.05 * Math.random());
-          const low = Math.min(open, close) - (range * 0.05 * Math.random());
       
-          const x = (idx / (points.length - 1)) * width;
+          const x = (idx / (candles.length - 1)) * width;
           const yOpen = height - ((open - min) / range) * height;
           const yClose = height - ((close - min) / range) * height;
           const yHigh = height - ((high - min) / range) * height;
@@ -494,5 +507,4 @@ export default function UnifiedSystemPortal() {
       </div>
     </div>
   );
-}
 }

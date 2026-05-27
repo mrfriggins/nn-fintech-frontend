@@ -32,6 +32,7 @@ export default function UnifiedSystemPortal() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   const [chartHistory, setChartHistory] = useState<{ [key: string]: number[] }>({});
+  const [chartMode, setChartMode] = useState<"line" | "candle">("candle");
 
   useEffect(() => {
     checkSession();
@@ -220,6 +221,43 @@ export default function UnifiedSystemPortal() {
     }).join(" ");
   };
 
+  const renderCandles = () => {
+    if (!selectedAsset || !chartHistory[selectedAsset.symbol]) return null;
+    const points = chartHistory[selectedAsset.symbol];
+    if (points.length < 2) return null;
+  
+    const max = Math.max(...points) * 1.0005;
+    const min = Math.min(...points) * 0.9995;
+    const range = max - min === 0 ? 1 : max - min;
+    const width = 500;
+    const height = 180;
+    const candleWidth = width / Math.max(points.length, 10) * 0.5;
+  
+    return points.map((val, idx) => {
+      if (idx === 0) return null;
+      const open = points[idx - 1];
+      const close = val;
+      const isUp = close >= open;
+      const color = isUp ? "#22c55e" : "#ef4444"; 
+      
+      const high = Math.max(open, close) + (range * 0.05 * Math.random());
+      const low = Math.min(open, close) - (range * 0.05 * Math.random());
+  
+      const x = (idx / (points.length - 1)) * width;
+      const yOpen = height - ((open - min) / range) * height;
+      const yClose = height - ((close - min) / range) * height;
+      const yHigh = height - ((high - min) / range) * height;
+      const yLow = height - ((low - min) / range) * height;
+  
+      return (
+        <g key={idx}>
+          <line x1={x} y1={yHigh} x2={x} y2={yLow} stroke={color} strokeWidth="1" />
+          <rect x={x - candleWidth / 2} y={Math.min(yOpen, yClose)} width={candleWidth} height={Math.max(Math.abs(yOpen - yClose), 1)} fill={color} />
+        </g>
+      );
+    });
+  };
+
   if (isInitializing) return <div className="min-h-screen bg-black text-green-500 flex items-center justify-center font-mono text-xs tracking-widest animate-pulse">CONNECTING TO COGNITIVE CORE...</div>;
 
   if (!isAuthenticated) {
@@ -306,12 +344,22 @@ export default function UnifiedSystemPortal() {
                       <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
                       <span className="text-xs font-bold text-gray-400 uppercase">{selectedAsset ? selectedAsset.symbol : "MATRIX_NODE"} VECTOR GRAPH</span>
                     </div>
-                    {selectedAsset && (
-                      <div className="text-xs font-mono space-x-3">
-                        <span className="text-gray-500">LIVE: <span className="text-white">${selectedAsset.price.toFixed(2)}</span></span>
-                        <span className={selectedAsset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{selectedAsset.change}</span>
-                      </div>
-                    )}
+                    
+                    <div className="flex items-center space-x-4">
+                      <button 
+                        onClick={() => setChartMode(prev => prev === "line" ? "candle" : "line")} 
+                        className="text-[10px] bg-gray-900 hover:bg-white hover:text-black border border-gray-700 px-2 py-1 transition-colors"
+                      >
+                        MODE: [{chartMode.toUpperCase()}]
+                      </button>
+                      
+                      {selectedAsset && (
+                        <div className="text-xs font-mono space-x-3">
+                          <span className="text-gray-500">LIVE: <span className="text-white">${selectedAsset.price.toFixed(2)}</span></span>
+                          <span className={selectedAsset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{selectedAsset.change}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="w-full bg-[#050505] border border-neutral-900 h-48 relative flex items-center justify-center overflow-hidden">
                     <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 pointer-events-none opacity-20">
@@ -319,7 +367,11 @@ export default function UnifiedSystemPortal() {
                     </div>
                     {selectedAsset && chartHistory[selectedAsset.symbol]?.length > 1 ? (
                       <svg className="w-full h-full p-2 overflow-visible" viewBox="0 0 500 180" preserveAspectRatio="none">
-                        <path d={renderChartPath()} fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                        {chartMode === "line" ? (
+                          <path d={renderChartPath()} fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                        ) : (
+                          renderCandles()
+                        )}
                       </svg>
                     ) : (<span className="text-neutral-700 text-xs tracking-widest animate-pulse">MAP INTEGRATION STREAMING...</span>)}
                   </div>

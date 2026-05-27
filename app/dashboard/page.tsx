@@ -23,6 +23,8 @@ export default function UnifiedSystemPortal() {
   const [marketAssets, setMarketAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [tradeAmount, setTradeAmount] = useState<string>("1000");
+  const [stopLoss, setStopLoss] = useState<string>("");
+  const [takeProfit, setTakeProfit] = useState<string>("");
   const [algoSignal, setAlgoSignal] = useState<any>(null);
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
@@ -53,7 +55,7 @@ export default function UnifiedSystemPortal() {
         localStorage.removeItem("token");
       }
     } catch (e) { 
-      console.error("Session sync cluster broken."); 
+      console.error("Session sync failed."); 
     }
     setIsInitializing(false);
   };
@@ -139,14 +141,34 @@ export default function UnifiedSystemPortal() {
     try {
       const res = await fetch(`${API_URL}/api/trade/execute`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: selectedAsset.symbol, side, amount: Number(tradeAmount) })
+        body: JSON.stringify({ symbol: selectedAsset.symbol, side, amount: Number(tradeAmount), sl: stopLoss, tp: takeProfit })
       });
       const data = await res.json();
       if (res.ok) { 
-        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance })); 
-        alert("Simulated order executed successfully."); 
+        setUser((prev: any) => ({ 
+            ...prev, 
+            demoBalance: data.newBalance,
+            activePositions: [...(prev.activePositions || []), data.position] 
+        })); 
+        setStopLoss(""); setTakeProfit("");
+      } else alert(`Denied: ${data.error}`);
+    } catch (e) {}
+  };
+
+  const handleClosePosition = async (positionId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/trade/close`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ positionId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUser((prev: any) => ({
+            ...prev,
+            demoBalance: data.newBalance,
+            activePositions: prev.activePositions.filter((p: any) => p.id !== positionId)
+        }));
       }
-      else alert(`Denied: ${data.error}`);
     } catch (e) {}
   };
 
@@ -247,12 +269,12 @@ export default function UnifiedSystemPortal() {
   return (
     <div className="min-h-screen bg-[#070707] text-gray-300 font-mono flex flex-col overflow-hidden">
       
-      <style>{`
+      <style dangerouslySetInnerHTML={{__html: `
         @keyframes marquee {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
         }
-      `}</style>
+      `}} />
 
       <div className="w-full bg-[#0d0d0d] border-b border-gray-900 py-1.5 overflow-hidden relative flex items-center">
         <div 
@@ -296,28 +318,77 @@ export default function UnifiedSystemPortal() {
         <main className="flex-1 p-4 md:p-6 overflow-y-auto bg-neutral-950">
           {activeTab === "terminal" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-[500px]">
-              <div className="lg:col-span-2 border border-gray-900 bg-black p-4 flex flex-col">
-                <div className="flex justify-between items-center border-b border-gray-900 pb-2 mb-4">
-                  <span className="text-xs font-bold text-gray-400">MARKET DATA ASSETS</span>
-                  {selectedAsset && <span className="text-xs text-green-500 font-bold">{selectedAsset.symbol} // ${selectedAsset.price}</span>}
+              <div className="lg:col-span-2 flex flex-col space-y-4">
+                <div className="border border-gray-900 bg-black p-4 flex flex-col">
+                  <div className="flex justify-between items-center border-b border-gray-900 pb-2 mb-4">
+                    <span className="text-xs font-bold text-gray-400">MARKET DATA ASSETS</span>
+                    {selectedAsset && <span className="text-xs text-green-500 font-bold">{selectedAsset.symbol} // ${selectedAsset.price.toFixed(2)}</span>}
+                  </div>
+                  <div className="overflow-y-auto max-h-[180px] space-y-1 pr-2">
+                    {marketAssets.map(asset => (
+                      <div key={asset.symbol} onClick={() => { setSelectedAsset(asset); fetchPredictiveSignal(asset.symbol); }} className={`flex justify-between p-2 text-xs cursor-pointer border ${selectedAsset?.symbol === asset.symbol ? "border-green-800 bg-neutral-900" : "border-transparent hover:bg-neutral-900/50"}`}>
+                        <span className="text-gray-400 font-bold">{asset.symbol} <span className="text-[9px] text-gray-600">({asset.type})</span></span>
+                        <div className="space-x-4"><span>${asset.price.toFixed(2)}</span><span className={asset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{asset.change}</span></div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[350px] mb-4 space-y-1 pr-2">
-                  {marketAssets.map(asset => (
-                    <div key={asset.symbol} onClick={() => { setSelectedAsset(asset); fetchPredictiveSignal(asset.symbol); }} className={`flex justify-between p-2 text-xs cursor-pointer border ${selectedAsset?.symbol === asset.symbol ? "border-green-800 bg-neutral-900" : "border-transparent hover:bg-neutral-900/50"}`}>
-                      <span className="text-gray-400 font-bold">{asset.symbol} <span className="text-[9px] text-gray-600">({asset.type})</span></span>
-                      <div className="space-x-4"><span>${asset.price.toFixed(2)}</span><span className={asset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{asset.change}</span></div>
-                    </div>
-                  ))}
+
+                <div className="border border-gray-900 bg-black p-4">
+                  <h3 className="text-xs font-bold text-gray-400 border-b border-gray-900 pb-2 mb-2">ACTIVE POSITIONS</h3>
+                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                    {(!user?.activePositions || user.activePositions.length === 0) ? (
+                      <p className="text-[10px] text-gray-600 italic">No open orders.</p>
+                    ) : (
+                      user.activePositions.map((pos: any) => {
+                        const currentAsset = marketAssets.find(a => a.symbol === pos.symbol);
+                        const currentPrice = currentAsset ? currentAsset.price : pos.entryPrice;
+                        const pnlFactor = pos.side === 'buy' ? (currentPrice - pos.entryPrice) / pos.entryPrice : (pos.entryPrice - currentPrice) / pos.entryPrice;
+                        const pnlAmount = pos.amount * pnlFactor;
+                        const isProfitable = pnlAmount >= 0;
+
+                        return (
+                          <div key={pos.id} className="border border-neutral-800 bg-neutral-900 p-2 text-[11px] flex justify-between items-center">
+                            <div>
+                              <span className={`font-bold mr-2 ${pos.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>[{pos.side.toUpperCase()}]</span>
+                              <span className="text-white font-bold mr-3">{pos.symbol}</span>
+                              <span className="text-gray-400 mr-3">Entry: ${pos.entryPrice.toFixed(2)}</span>
+                              {pos.sl && <span className="text-red-500 mr-2">SL: ${pos.sl}</span>}
+                              {pos.tp && <span className="text-green-500">TP: ${pos.tp}</span>}
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <span className={`font-bold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
+                                {isProfitable ? '+' : ''}{pnlAmount.toFixed(2)} USD
+                              </span>
+                              <button onClick={() => handleClosePosition(pos.id)} className="bg-gray-800 hover:bg-white hover:text-black border border-gray-600 px-2 py-1 font-bold text-[9px]">CLOSE</button>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="border border-gray-900 bg-black p-4 flex flex-col justify-between">
                 <div>
                   <h3 className="text-xs font-bold text-gray-400 border-b border-gray-900 pb-2 mb-4">ORDER EXECUTION</h3>
-                  <label className="text-[10px] text-gray-500 block mb-1">POSITION SIZE (USD)</label>
-                  <input type="number" value={tradeAmount} onChange={e => setTradeAmount(e.target.value)} className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white mb-4 focus:outline-none focus:border-green-600" />
                   
-                  <div className="border border-neutral-900 p-3 bg-neutral-950 mb-4 text-[11px]">
+                  <label className="text-[10px] text-gray-500 block mb-1">POSITION SIZE (USD)</label>
+                  <input type="number" value={tradeAmount} onChange={e => setTradeAmount(e.target.value)} className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white mb-3 focus:outline-none focus:border-green-600 rounded-none" />
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                      <label className="text-[10px] text-red-500 block mb-1">STOP LOSS (PRICE)</label>
+                      <input type="number" value={stopLoss} onChange={e => setStopLoss(e.target.value)} placeholder="0.00" className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white focus:outline-none focus:border-red-600 rounded-none" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-green-500 block mb-1">TAKE PROFIT (PRICE)</label>
+                      <input type="number" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} placeholder="0.00" className="w-full bg-neutral-950 border border-gray-800 p-2 text-xs text-white focus:outline-none focus:border-green-600 rounded-none" />
+                    </div>
+                  </div>
+
+                  <div className="border border-neutral-900 p-3 bg-neutral-950 mb-4 text-[11px] mt-4">
                     <p className="text-purple-400 font-bold mb-2">QUANT ALGO TELEMETRY</p>
                     {algoSignal?.locked ? (
                       <div className="space-y-2">
@@ -338,8 +409,8 @@ export default function UnifiedSystemPortal() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => handleExecuteTrade("buy")} className="bg-green-950/40 border border-green-600 text-green-400 hover:bg-green-500 hover:text-black p-3 text-xs font-bold">EXECUTE LONG</button>
-                  <button onClick={() => handleExecuteTrade("sell")} className="bg-red-950/40 border border-red-600 text-red-400 hover:bg-red-500 hover:text-black p-3 text-xs font-bold">EXECUTE SHORT</button>
+                  <button onClick={() => handleExecuteTrade("buy")} className="bg-green-950/40 border border-green-700 text-green-400 hover:bg-green-500 hover:text-black p-3 text-xs font-bold tracking-widest transition-colors">EXECUTE LONG</button>
+                  <button onClick={() => handleExecuteTrade("sell")} className="bg-red-950/40 border border-red-700 text-red-400 hover:bg-red-500 hover:text-black p-3 text-xs font-bold tracking-widest transition-colors">EXECUTE SHORT</button>
                 </div>
               </div>
             </div>

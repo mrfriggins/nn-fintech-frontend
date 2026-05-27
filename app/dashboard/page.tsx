@@ -249,7 +249,7 @@ export default function UnifiedSystemPortal() {
     <div className="min-h-screen bg-[#070707] text-gray-300 font-mono flex flex-col overflow-hidden">
       
       <div className="w-full bg-[#0d0d0d] border-b border-gray-900 py-1.5 overflow-hidden relative flex items-center">
-        <div className="flex animate-[marquee_30s_linear_infinite] whitespace-nowrap gap-10 text-[11px]">
+        <div className="flex animate-marquee whitespace-nowrap gap-10 text-[11px]">
           {marketAssets.length > 0 ? (
             [...marketAssets, ...marketAssets].map((asset, i) => (
               <span key={i} className="inline-flex items-center space-x-2">
@@ -357,13 +357,6 @@ export default function UnifiedSystemPortal() {
           )}
         </main>
       </div>
-
-      <style jsx global>{`
-        @keyframes marquee {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }

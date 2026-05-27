@@ -7,7 +7,7 @@ export default function UnifiedSystemPortal() {
   const [isInitializing, setIsInitializing] = useState(true);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-  const [authMode, setAuthMode] = useState<"login" | "register" | "verify" | "forgot" | "reset">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "verify">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authSuccess, setAuthSuccess] = useState("");
@@ -27,7 +27,6 @@ export default function UnifiedSystemPortal() {
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [targetBanEmail, setTargetBanEmail] = useState("");
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   useEffect(() => {
@@ -248,6 +247,13 @@ export default function UnifiedSystemPortal() {
   return (
     <div className="min-h-screen bg-[#070707] text-gray-300 font-mono flex flex-col overflow-hidden">
       
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+
       <div className="w-full bg-[#0d0d0d] border-b border-gray-900 py-1.5 overflow-hidden relative flex items-center">
         <div 
           className="flex whitespace-nowrap gap-10 text-[11px]"
@@ -348,7 +354,7 @@ export default function UnifiedSystemPortal() {
                   <div className="flex-1 border border-gray-900 bg-black p-4 mb-4 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-gray-400">{aiResponse || "[Pipeline active. Inquire structural patterns...]"}</div>
                   <div className="flex space-x-2">
                     <input type="text" value={aiQuestion} onChange={e => setAiQuestion(e.target.value)} placeholder="Inquire core metrics..." className="flex-1 bg-black border border-gray-800 p-3 text-xs text-white focus:outline-none focus:border-green-600 rounded-none" onKeyDown={e => e.key === "Enter" && !isAiLoading && askOracle()} />
-                    <button onClick={askOracle} disabled={isAiLoading || !aiQuestion} className="bg-neutral-900 border border-gray-700 text-xs px-6 hover:bg-green-600 hover:text-black font-bold disabled:opacity-30 text-white">{isAiLoading ? "PROCESSING..." : "QUERY CORE"}</button>
+                    <button onClick={askOracle} disabled={isAiLoading || !aiQuestion} className="bg-neutral-900 border border-gray-700 text-xs px-6 hover:bg-green-600 hover:text-black font-bold disabled:opacity-30 text-white">{isAiLoading ? "PROCESSING..." : "QUERY CORE"} </button>
                   </div>
                 </>
               ) : (

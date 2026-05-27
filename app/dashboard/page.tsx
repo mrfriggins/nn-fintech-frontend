@@ -9,6 +9,29 @@ type ChartCandle = {
   close: number;
 };
 
+const DEMO_MARKET_ASSETS = [
+  { symbol: "BTC/USD", price: 68400.00, volatility: 0.005, type: "CRYPTO", change: "+0.00%" },
+  { symbol: "ETH/USD", price: 3450.00, volatility: 0.008, type: "CRYPTO", change: "+0.00%" },
+  { symbol: "SOL/USD", price: 145.20, volatility: 0.012, type: "CRYPTO", change: "+0.00%" },
+  { symbol: "NVDA", price: 885.00, volatility: 0.006, type: "STOCK", change: "+0.00%" },
+  { symbol: "AAPL", price: 175.50, volatility: 0.003, type: "STOCK", change: "+0.00%" },
+  { symbol: "TSLA", price: 170.20, volatility: 0.009, type: "STOCK", change: "+0.00%" },
+  { symbol: "SPY", price: 520.15, volatility: 0.002, type: "INDEX", change: "+0.00%" },
+];
+
+const createDemoMarketTick = () =>
+  DEMO_MARKET_ASSETS.map(asset => {
+    const movement = asset.price * (Math.random() * asset.volatility * 2 - asset.volatility);
+    const price = Number((asset.price + movement).toFixed(4));
+    const changePct = (((price - asset.price) / asset.price) * 100).toFixed(2);
+
+    return {
+      ...asset,
+      price,
+      change: Number(changePct) >= 0 ? `+${changePct}%` : `${changePct}%`,
+    };
+  });
+
 export default function UnifiedSystemPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -27,8 +50,8 @@ export default function UnifiedSystemPortal() {
 
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("terminal");
-  const [marketAssets, setMarketAssets] = useState<any[]>([]);
-  const [selectedAsset, setSelectedAsset] = useState<any>(null);
+  const [marketAssets, setMarketAssets] = useState<any[]>(DEMO_MARKET_ASSETS);
+  const [selectedAsset, setSelectedAsset] = useState<any>(DEMO_MARKET_ASSETS[0]);
   const [tradeAmount, setTradeAmount] = useState<string>("1000");
   const [stopLoss, setStopLoss] = useState<string>("");
   const [takeProfit, setTakeProfit] = useState<string>("");
@@ -156,10 +179,20 @@ export default function UnifiedSystemPortal() {
       const res = await fetch(`${API_URL}/api/market/stream`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
       if (res.ok) {
         const data = await res.json(); 
-        setMarketAssets(data);
-        if (!selectedAsset && data.length > 0) setSelectedAsset(data[0]);
+        if (Array.isArray(data) && data.length > 0) {
+          setMarketAssets(data);
+          if (!selectedAsset) setSelectedAsset(data[0]);
+          return;
+        }
       }
-    } catch (e) { }
+      const demoData = createDemoMarketTick();
+      setMarketAssets(demoData);
+      if (!selectedAsset) setSelectedAsset(demoData[0]);
+    } catch (e) {
+      const demoData = createDemoMarketTick();
+      setMarketAssets(demoData);
+      if (!selectedAsset) setSelectedAsset(demoData[0]);
+    }
   };
 
   const fetchPredictiveSignal = async (symbol: string) => {

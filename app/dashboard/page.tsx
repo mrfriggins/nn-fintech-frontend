@@ -222,7 +222,11 @@ export default function UnifiedSystemPortal() {
     }).join(" ");
   };
 
-  const renderCandles = () => {
+  const renderCandles = () => {const renderCandles = () => {
+    if (!selectedAsset || !chartHistory[selectedAsset.symbol]) {
+      console.log("DEBUG: Waiting for chart data..."); // ADD THIS
+      return <text x="50" y="50" fill="white">AWAITING DATA...</text>; // ADD THIS
+    }
     if (!selectedAsset || !chartHistory[selectedAsset.symbol]) return null;
     const points = chartHistory[selectedAsset.symbol];
     if (points.length < 2) return null;
@@ -490,4 +494,5 @@ export default function UnifiedSystemPortal() {
       </div>
     </div>
   );
+}
 }

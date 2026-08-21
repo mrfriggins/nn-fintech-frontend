@@ -70,3 +70,6 @@ $RECYCLE.BIN/
 
 
 .vercel
+
+# Test coverage output
+coverage/

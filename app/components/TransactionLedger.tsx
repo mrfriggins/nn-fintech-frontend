@@ -1,18 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { requestGet } from "@/app/lib/api";
+import { formatSignedAmount, formatTimestamp, signColorClass } from "@/app/lib/formatting";
+import { usePolling } from "@/app/lib/polling";
 
 export default function TransactionLedger() {
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLedger = async () => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/account/transactions", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setTransactions(data);
+      const result = await requestGet<any[]>("/api/account/transactions");
+      setTransactions(result.data || []);
     } catch (err) {
       console.error("Ledger Sync Failure");
     } finally {
@@ -20,11 +19,7 @@ export default function TransactionLedger() {
     }
   };
 
-  useEffect(() => {
-    fetchLedger();
-    const interval = setInterval(fetchLedger, 10000); // Refresh every 10s
-    return () => clearInterval(interval);
-  }, []);
+  usePolling(fetchLedger, 10000, []);
 
   if (loading) return <p className="animate-pulse font-black text-xs">SYNCING VAULT...</p>;
 
@@ -43,13 +38,13 @@ export default function TransactionLedger() {
                   {tx.type}
                 </span>
                 <span className="text-[9px] text-gray-400 uppercase">
-                  {new Date(tx.date).toLocaleString()}
+                  {formatTimestamp(tx.date)}
                 </span>
               </div>
               
               <div className="text-right">
-                <span className={`text-sm font-black ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)} USD
+                <span className={`text-sm font-black ${signColorClass(tx.amount, 'text-green-500', 'text-red-500')}`}>
+                  {formatSignedAmount(tx.amount, { grouping: false })} USD
                 </span>
                 
                 {/* BACKEND STATUS HANDSHAKE */}

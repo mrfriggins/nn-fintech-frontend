@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { requestPostJson } from "@/app/lib/api";
 
 export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
   const [formData, setFormData] = useState({
@@ -14,19 +15,10 @@ export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const token = localStorage.getItem("token");
-
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/kyc/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const result = await requestPostJson("/api/kyc/submit", formData);
 
-      if (res.ok) {
+      if (result.ok) {
         setMessage("✅ Identity Submitted. Awaiting Admin Review.");
         onStatusUpdate("SUBMITTED");
       } else {

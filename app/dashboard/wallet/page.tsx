@@ -2,18 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
+import { requestGet, requestPostJson } from "@/app/lib/api";
+import { formatUsdAmount } from "@/app/lib/formatting";
 
 export default function WalletPage() {
   const [balance, setBalance] = useState(0);
   const [amount, setAmount] = useState("10.00");
 
   const updateBalance = async () => {
-    const token = localStorage.getItem("token");
-    const res = await fetch("http://127.0.0.1:8080/api/account/balance", {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setBalance(data.balance || 0);
+    const result = await requestGet<{ balance?: number }>("/api/account/balance");
+    setBalance(result.data?.balance || 0);
   };
 
   useEffect(() => { updateBalance(); }, []);
@@ -23,7 +21,7 @@ export default function WalletPage() {
       <div className="border-8 border-black p-8 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
         <h1 className="text-5xl font-black uppercase italic">Capital Vault</h1>
         <p className="text-4xl font-mono text-green-600 font-bold mt-4">
-          ${balance.toFixed(2)}
+          ${formatUsdAmount(balance, { grouping: false })}
         </p>
       </div>
 
@@ -45,27 +43,12 @@ export default function WalletPage() {
             forceReRender={[amount]}
             style={{ layout: "vertical", color: "black", shape: "rect" }}
             createOrder={async () => {
-              const res = await fetch("http://127.0.0.1:8080/api/paypal/create-order", {
-                method: "POST",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ amount })
-              });
-              const order = await res.json();
-              return order.id;
+              const result = await requestPostJson<{ id: string }>("/api/paypal/create-order", { amount });
+              return result.data?.id || "";
             }}
             onApprove={async (data) => {
-              const res = await fetch("http://127.0.0.1:8080/api/paypal/capture-order", {
-                method: "POST",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ orderID: data.orderID })
-              });
-              if (res.ok) {
+              const result = await requestPostJson("/api/paypal/capture-order", { orderID: data.orderID });
+              if (result.ok) {
                 alert("CAPITAL SECURED.");
                 updateBalance();
               }

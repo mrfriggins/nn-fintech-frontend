@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { requestPostJson } from "@/app/lib/api";
 
 export default function TransactionHub({ userBalance, syncData }: any) {
   const [amount, setAmount] = useState("");
@@ -7,40 +8,28 @@ export default function TransactionHub({ userBalance, syncData }: any) {
   const [method, setMethod] = useState("M-Pesa"); // Default for Tanzania
   const [status, setStatus] = useState("");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
   // --- 💸 PEER-TO-PEER TRANSFER ---
   const handleTransfer = async () => {
     setStatus("Processing Transfer...");
-    const res = await fetch("http://127.0.0.1:8080/api/transfer/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ recipientEmail: recipient, amount })
-    });
-    const data = await res.json();
-    if (res.ok) {
+    const result = await requestPostJson("/api/transfer/send", { recipientEmail: recipient, amount });
+    if (result.ok) {
       setStatus("✅ Transfer Complete!");
       syncData(); // Refresh balance
     } else {
-      setStatus(`❌ Error: ${data.error}`);
+      setStatus(`❌ Error: ${result.data?.error}`);
     }
   };
 
   // --- 🏦 WITHDRAWAL REQUEST (KYC GUARDED) ---
   const handleWithdraw = async () => {
     setStatus("Logging Withdrawal...");
-    const res = await fetch("http://127.0.0.1:8080/api/withdraw/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ amount, method, details: `Withdraw to ${method} account` })
-    });
-    const data = await res.json();
-    if (res.ok) {
+    const result = await requestPostJson("/api/withdraw/request", { amount, method, details: `Withdraw to ${method} account` });
+    if (result.ok) {
       setStatus("✅ Request Sent! Awaiting Admin Approval.");
       syncData();
     } else {
       // This will catch the "KYC VERIFICATION REQUIRED" error from your backend
-      setStatus(`❌ Denied: ${data.error}`);
+      setStatus(`❌ Denied: ${result.data?.error}`);
     }
   };
 

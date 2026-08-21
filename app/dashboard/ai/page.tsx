@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { requestGet, requestPostJson } from "@/app/lib/api";
+import { formatUsdAmount } from "@/app/lib/formatting";
 
 export default function AiTerminal() {
   const [symbols, setSymbols] = useState<string[]>([]);
@@ -12,11 +12,9 @@ export default function AiTerminal() {
   // Fetch the available assets from the market engine
   useEffect(() => {
     const fetchMarket = async () => {
-      const res = await fetch(`${API_URL}/api/market/stocks`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const result = await requestGet<any[]>("/api/market/stocks");
+      if (result.ok) {
+        const data = result.data || [];
         const assetList = data.map((s: any) => s.symbol);
         setSymbols(assetList);
         if (assetList.length > 0) setSelectedAsset(assetList[0]);
@@ -29,20 +27,12 @@ export default function AiTerminal() {
     setLoading(true);
     setAnalysis(null);
     try {
-      const res = await fetch(`${API_URL}/api/ai/analyze`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
-        },
-        body: JSON.stringify({ symbol: selectedAsset })
-      });
-      if (res.ok) {
-        setAnalysis(await res.json());
+      const result = await requestPostJson("/api/ai/analyze", { symbol: selectedAsset });
+      if (result.ok) {
+        setAnalysis(result.data);
       } else {
         // We pull the exact error message from the backend instead of guessing
-        const errorData = await res.json();
-        alert(`SYSTEM REJECTION: ${errorData.error || "Unknown Error"}`);
+        alert(`SYSTEM REJECTION: ${result.data?.error || "Unknown Error"}`);
       }
     } catch (err) {
       alert("AI MAINFRAME OFFLINE.");
@@ -92,7 +82,7 @@ export default function AiTerminal() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="bg-white border-4 border-black p-4">
                     <p className="text-[10px] font-black uppercase text-zinc-400 mb-1">Current Tick Price</p>
-                    <p className="text-3xl font-black tabular-nums">${analysis.currentPrice.toLocaleString()}</p>
+            <p className="text-3xl font-black tabular-nums">${formatUsdAmount(analysis.currentPrice)}</p>
                 </div>
                 <div className={`border-4 border-black p-4 ${analysis.recommendation.includes('BUY') ? 'bg-green-100' : analysis.recommendation.includes('SELL') ? 'bg-red-100' : 'bg-yellow-100'}`}>
                     <p className="text-[10px] font-black uppercase text-black mb-1">System Directive</p>

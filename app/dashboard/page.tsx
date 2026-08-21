@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { requestGet, requestPostJson } from "@/app/lib/api";
+import { changeColorClass, formatSignedAmount, formatUsdAmount, signColorClass } from "@/app/lib/formatting";
+import { getChartScale } from "@/app/lib/charts";
+import { usePolling } from "@/app/lib/polling";
 
 type ChartCandle = {
   open: number;
@@ -35,8 +39,6 @@ const createDemoMarketTick = () =>
 export default function UnifiedSystemPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-
   const [authMode, setAuthMode] = useState<"login" | "register" | "verify">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -65,17 +67,24 @@ export default function UnifiedSystemPortal() {
   const [chartHistory, setChartHistory] = useState<{ [key: string]: ChartCandle[] }>({});
   const [chartMode, setChartMode] = useState<"line" | "candle">("candle");
 
+  async function checkSession() {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token) { setIsInitializing(false); return; }
+    try {
+      const result = await requestGet("/api/users/profile");
+      if (result.ok) {
+        setUser(result.data);
+        setIsAuthenticated(true);
+      } else {
+        localStorage.removeItem("token");
+      }
+    } catch (e) { }
+    setIsInitializing(false);
+  }
+
   useEffect(() => {
     checkSession();
   }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchMarketData();
-      const interval = setInterval(fetchMarketData, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated]);
 
   useEffect(() => {
     if (marketAssets.length === 0) return;
@@ -118,30 +127,12 @@ export default function UnifiedSystemPortal() {
     }
   }, [marketAssets, selectedAsset]);
 
-  const checkSession = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) { setIsInitializing(false); return; }
-    try {
-      const res = await fetch(`${API_URL}/api/users/profile`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        setUser(await res.json());
-        setIsAuthenticated(true);
-      } else {
-        localStorage.removeItem("token");
-      }
-    } catch (e) { }
-    setIsInitializing(false);
-  };
-
   const executeAuthCall = async (endpoint: string, payload: any) => {
     setAuthLoading(true); setAuthError(""); setAuthSuccess("");
     try {
-      const res = await fetch(`${API_URL}/auth/${endpoint}`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+      const result = await requestPostJson(`/auth/${endpoint}`, payload, { authenticated: false });
       setAuthLoading(false);
-      return { ok: res.ok, data };
+      return { ok: result.ok, data: result.data };
     } catch (err) {
       setAuthLoading(false); 
       setAuthError("Network cluster offline."); 
@@ -176,9 +167,9 @@ export default function UnifiedSystemPortal() {
 
   const fetchMarketData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/market/stream`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-      if (res.ok) {
-        const data = await res.json(); 
+      const result = await requestGet<any[]>("/api/market/stream");
+      if (result.ok) {
+        const data = result.data;
         if (Array.isArray(data) && data.length > 0) {
           setMarketAssets(data);
           if (!selectedAsset) setSelectedAsset(data[0]);
@@ -195,25 +186,24 @@ export default function UnifiedSystemPortal() {
     }
   };
 
+  usePolling(fetchMarketData, 3000, [isAuthenticated], isAuthenticated);
+
   const fetchPredictiveSignal = async (symbol: string) => {
     setAlgoSignal(null);
     try {
-      const res = await fetch(`${API_URL}/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-      const data = await res.json();
-      if (res.ok) setAlgoSignal(data);
-      else if (data.paymentRequired) setAlgoSignal({ locked: true });
+      const result = await requestGet(`/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`);
+      const data = result.data;
+      if (result.ok) setAlgoSignal(data);
+      else if (data?.paymentRequired) setAlgoSignal({ locked: true });
     } catch (e) { setAlgoSignal({ locked: true }); }
   };
 
   const handleExecuteTrade = async (side: "buy" | "sell") => {
     if (!selectedAsset) return;
     try {
-      const res = await fetch(`${API_URL}/api/trade/execute`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: selectedAsset.symbol, side, amount: Number(tradeAmount), sl: stopLoss, tp: takeProfit })
-      });
-      const data = await res.json();
-      if (res.ok) { 
+      const result = await requestPostJson("/api/trade/execute", { symbol: selectedAsset.symbol, side, amount: Number(tradeAmount), sl: stopLoss, tp: takeProfit });
+      const data = result.data;
+      if (result.ok) { 
         setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: [...(prev.activePositions || []), data.position] })); 
         setStopLoss(""); setTakeProfit("");
       } else alert(`Denied: ${data.error}`);
@@ -222,12 +212,9 @@ export default function UnifiedSystemPortal() {
 
   const handleClosePosition = async (positionId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/trade/close`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ positionId })
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const result = await requestPostJson("/api/trade/close", { positionId });
+      const data = result.data;
+      if (result.ok) {
         setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: prev.activePositions.filter((p: any) => p.id !== positionId) }));
       }
     } catch (e) {}
@@ -236,11 +223,9 @@ export default function UnifiedSystemPortal() {
   const initializeCryptoCheckout = async () => {
     setIsCheckoutLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/payment/create`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` }
-      });
-      const data = await res.json();
-      if (res.ok && data.checkoutUrl) window.location.href = data.checkoutUrl;
+      const result = await requestPostJson("/api/payment/create");
+      const data = result.data;
+      if (result.ok && data.checkoutUrl) window.location.href = data.checkoutUrl;
       else alert(data.error || "Could not launch processing module.");
     } catch (e) { alert("Billing engine endpoint unreachable."); }
     setIsCheckoutLoading(false);
@@ -250,12 +235,9 @@ export default function UnifiedSystemPortal() {
     if (!aiQuestion) return;
     setIsAiLoading(true); setAiResponse("");
     try {
-      const res = await fetch(`${API_URL}/api/ai/openai/tutor`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ question: aiQuestion })
-      });
-      const data = await res.json(); 
-      if (res.ok) setAiResponse(data.tutorResponse);
+      const result = await requestPostJson("/api/ai/openai/tutor", { question: aiQuestion });
+      const data = result.data; 
+      if (result.ok) setAiResponse(data.tutorResponse);
       else if (data.paymentRequired) setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
     } catch (error) { setAiResponse("[CRITICAL ERROR] Core connection failed."); }
     setIsAiLoading(false);
@@ -265,9 +247,7 @@ export default function UnifiedSystemPortal() {
     if (!selectedAsset || !chartHistory[selectedAsset.symbol]) return "";
     const points = chartHistory[selectedAsset.symbol].map(candle => candle.close);
     if (points.length < 2) return "";
-    const max = Math.max(...points) * 1.0005;
-    const min = Math.min(...points) * 0.9995;
-    const range = max - min === 0 ? 1 : max - min;
+    const { min, range } = getChartScale(points);
     const width = 500;
     const height = 180;
     return points.map((val, idx) => {
@@ -282,9 +262,7 @@ export default function UnifiedSystemPortal() {
     const candles = chartHistory[selectedAsset.symbol];
     if (candles.length < 2) return null;
   
-    const max = Math.max(...candles.map(candle => candle.high)) * 1.0005;
-    const min = Math.min(...candles.map(candle => candle.low)) * 0.9995;
-    const range = max - min === 0 ? 1 : max - min;
+    const { min, range } = getChartScale(candles.flatMap(candle => [candle.high, candle.low]));
     const width = 500;
     const height = 180;
     const candleWidth = width / Math.max(candles.length, 10) * 0.55;
@@ -364,8 +342,8 @@ export default function UnifiedSystemPortal() {
             [...marketAssets, ...marketAssets].map((asset, i) => (
               <span key={i} className="inline-flex items-center space-x-2">
                 <span className="text-gray-500 font-bold">[{asset.type}]</span><span className="text-white font-bold">{asset.symbol}</span>
-                <span className="text-gray-300">${asset.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                <span className={asset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{asset.change}</span>
+                <span className="text-gray-300">${formatUsdAmount(asset.price, { minimumFractionDigits: 2 })}</span>
+                <span className={changeColorClass(asset.change, "text-green-500", "text-red-500")}>{asset.change}</span>
               </span>
             ))
           ) : (<span className="text-gray-600 tracking-widest text-xs">SYNCHRONIZING SYSTEM INSTRUMENT RATES...</span>)}
@@ -376,7 +354,7 @@ export default function UnifiedSystemPortal() {
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-6 w-full md:w-auto">
           <span className="text-green-500 font-bold tracking-widest text-[10px] md:text-sm w-full text-center md:w-auto">NN-FINTECH LAYER 1</span>
           <span className="text-[9px] md:text-xs text-gray-500 bg-gray-950 px-2 py-1 border border-gray-800">AI: {operatesPremium ? "AUTH" : "LVL 1"}</span>
-          <span className="text-[9px] md:text-xs text-green-400 bg-gray-950 px-2 py-1 border border-gray-800">BAL: ${user?.demoBalance?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span className="text-[9px] md:text-xs text-green-400 bg-gray-950 px-2 py-1 border border-gray-800">BAL: ${user?.demoBalance === undefined ? "" : formatUsdAmount(user.demoBalance, { minimumFractionDigits: 2 })}</span>
         </div>
         <button onClick={logout} className="text-[9px] md:text-xs border border-red-900 text-red-500 px-3 py-1 hover:bg-red-950/30 w-full md:w-auto mt-2 md:mt-0">DISCONNECT_NODE</button>
       </header>
@@ -410,8 +388,8 @@ export default function UnifiedSystemPortal() {
                       
                       {selectedAsset && (
                         <div className="text-xs font-mono space-x-3">
-                          <span className="text-gray-500">LIVE: <span className="text-white">${selectedAsset.price.toFixed(2)}</span></span>
-                          <span className={selectedAsset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{selectedAsset.change}</span>
+                          <span className="text-gray-500">LIVE: <span className="text-white">${formatUsdAmount(selectedAsset.price, { grouping: false })}</span></span>
+                          <span className={changeColorClass(selectedAsset.change, "text-green-500", "text-red-500")}>{selectedAsset.change}</span>
                         </div>
                       )}
                     </div>
@@ -440,7 +418,7 @@ export default function UnifiedSystemPortal() {
                     {marketAssets.map(asset => (
                       <div key={asset.symbol} onClick={() => { setSelectedAsset(asset); fetchPredictiveSignal(asset.symbol); }} className={`flex justify-between p-2 text-xs cursor-pointer border ${selectedAsset?.symbol === asset.symbol ? "border-green-800 bg-neutral-900" : "border-transparent hover:bg-neutral-900/50"}`}>
                         <span className="text-gray-400 font-bold">{asset.symbol} <span className="text-[9px] text-gray-600">({asset.type})</span></span>
-                        <div className="space-x-4"><span>${asset.price.toFixed(2)}</span><span className={asset.change.startsWith("+") ? "text-green-500" : "text-red-500"}>{asset.change}</span></div>
+                        <div className="space-x-4"><span>${formatUsdAmount(asset.price, { grouping: false })}</span><span className={changeColorClass(asset.change, "text-green-500", "text-red-500")}>{asset.change}</span></div>
                       </div>
                     ))}
                   </div>
@@ -464,13 +442,13 @@ export default function UnifiedSystemPortal() {
                             <div>
                               <span className={`font-bold mr-2 ${pos.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>[{pos.side.toUpperCase()}]</span>
                               <span className="text-white font-bold mr-3">{pos.symbol}</span>
-                              <span className="text-gray-400 mr-3">Entry: ${pos.entryPrice.toFixed(2)}</span>
+                              <span className="text-gray-400 mr-3">Entry: ${formatUsdAmount(pos.entryPrice, { grouping: false })}</span>
                               {pos.sl && <span className="text-red-500 mr-2">SL: ${pos.sl}</span>}
                               {pos.tp && <span className="text-green-500">TP: ${pos.tp}</span>}
                             </div>
                             <div className="flex items-center space-x-3">
-                              <span className={`font-bold ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
-                                {isProfitable ? '+' : ''}{pnlAmount.toFixed(2)} USD
+                              <span className={`font-bold ${signColorClass(pnlAmount, 'text-green-500', 'text-red-500', true)}`}>
+                                {formatSignedAmount(pnlAmount, { grouping: false })} USD
                               </span>
                               <button onClick={() => handleClosePosition(pos.id)} className="bg-gray-800 hover:bg-white hover:text-black border border-gray-600 px-2 py-1 font-bold text-[9px]">CLOSE</button>
                             </div>

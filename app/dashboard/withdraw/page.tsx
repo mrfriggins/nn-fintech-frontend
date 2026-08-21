@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { requestPostJson } from "@/app/lib/api";
 
 export default function WithdrawPage() {
   const [amount, setAmount] = useState("");
@@ -12,20 +11,12 @@ export default function WithdrawPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/withdraw/instant`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ amount, paypalEmail }),
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const result = await requestPostJson("/api/withdraw/instant", { amount, paypalEmail });
+      if (result.ok) {
         alert("LIQUIDITY DISBURSED: Check your PayPal.");
         window.location.href = "/dashboard";
       } else {
-        alert(`ERROR: ${data.error}`);
+        alert(`ERROR: ${result.data?.error}`);
       }
     } catch (err) { alert("GATEWAY OFFLINE"); }
     finally { setLoading(false); }

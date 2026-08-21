@@ -1,39 +1,36 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { ApiError, ApiRecord, apiFetchArray, errorMessage, logError } from "../../lib/api";
 
 export default function AdminHQ() {
   const router = useRouter();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [stats, setStats] = useState({ totalRev: 0, activeUsers: 0 });
 
   const fetchAdminData = async () => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`${API_URL}/api/admin/all-transactions`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-
-      if (res.status === 403) {
-        alert("CRITICAL: Administrative Clearance Required.");
-        router.push("/dashboard");
-        return;
-      }
-
-      const data = await res.json();
+      const data = await apiFetchArray<ApiRecord>("/api/admin/all-transactions");
       setLogs(data);
 
       const revenue = data.reduce((acc: number, log: any) => {
         // Absolute value for revenue tracking
-        return (log.type.includes("LICENSE") || log.type.includes("PURCHASE")) ? acc + Math.abs(log.amount) : acc;
+        const type = typeof log?.type === "string" ? log.type : "";
+        return (type.includes("LICENSE") || type.includes("PURCHASE")) ? acc + Math.abs(Number(log?.amount) || 0) : acc;
       }, 0);
-      
-      setStats({ totalRev: revenue, activeUsers: new Set(data.map((l: any) => l.userEmail)).size });
+
+      setStats({ totalRev: revenue, activeUsers: new Set(data.map((l: any) => l?.userEmail)).size });
+      setError("");
     } catch (err) {
-      console.error("ADMIN LINK FAILURE");
+      logError("admin ledger fetch failed", err);
+      if (err instanceof ApiError && err.isForbidden) {
+        alert("CRITICAL: Administrative Clearance Required.");
+        router.push("/dashboard");
+        return;
+      }
+      setError(errorMessage(err, "Admin link failure — ledger unavailable."));
     } finally {
       setLoading(false);
     }
@@ -63,6 +60,12 @@ export default function AdminHQ() {
           Back to Terminal
         </button>
       </div>
+
+      {error && (
+        <div className="border border-red-700 bg-red-950/30 text-red-400 p-4 mb-8 text-[11px] font-black uppercase tracking-widest">
+          {error}
+        </div>
+      )}
 
       {/* KPI GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -98,7 +101,7 @@ export default function AdminHQ() {
             </thead>
             <tbody className="divide-y divide-[#003b00]/30">
               {logs.length === 0 ? (
-                <tr><td colSpan={4} className="p-10 text-center opacity-50 uppercase tracking-widest">No Data Packets Found</td></tr>
+                <tr><td colSpan={4} className="p-10 text-center opacity-50 uppercase tracking-widest">{error ? "Feed Unavailable" : "No Data Packets Found"}</td></tr>
               ) : logs.map((log, i) => (
                 <tr key={i} className="hover:bg-[#00ff41]/5 transition-colors">
                   <td className="p-4 opacity-60 tabular-nums">{new Date(log.date).toLocaleString()}</td>

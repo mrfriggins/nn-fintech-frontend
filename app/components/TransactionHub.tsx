@@ -1,37 +1,31 @@
 "use client";
 import { useState } from "react";
+import { ApiRecord, apiFetch, errorMessage, logError } from "../lib/api";
 
 export default function TransactionHub({ syncData }: any) {
   const [transferData, setTransferData] = useState({ email: "", amount: "" });
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // --- 1. THE AUTOMATED P2P TRANSFER ---
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/transfer/send", {
+      await apiFetch("/api/transfer/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ 
-          recipientEmail: transferData.email, 
-          amount: transferData.amount 
+        body: JSON.stringify({
+          recipientEmail: transferData.email,
+          amount: transferData.amount
         }),
       });
-
-      const data = await res.json();
-      if (res.ok) {
-        alert("TRANSFER SUCCESSFUL: Capital Moved.");
-        syncData();
-      } else {
-        alert(`TRANSFER FAILED: ${data.error}`);
-      }
+      alert("TRANSFER SUCCESSFUL: Capital Moved.");
+      syncData?.();
     } catch (err) {
-      alert("VAULT CONNECTION ERROR");
+      logError("p2p transfer failed", err);
+      setError(`TRANSFER FAILED: ${errorMessage(err, "Vault connection error.")}`);
     } finally {
       setLoading(false);
     }
@@ -45,28 +39,20 @@ export default function TransactionHub({ syncData }: any) {
     if (!paypalEmail) return;
 
     setLoading(true);
+    setError("");
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/withdraw/instant", {
+      const data = await apiFetch<ApiRecord>("/api/withdraw/instant", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ 
-          amount: withdrawAmount, 
-          paypalEmail: paypalEmail 
+        body: JSON.stringify({
+          amount: withdrawAmount,
+          paypalEmail: paypalEmail
         }),
       });
-
-      const data = await res.json();
-      if (res.ok) {
-        alert(`✅ LIQUIDITY DISBURSED: ${data.message}`);
-        syncData();
-      } else {
-        alert(`❌ WITHDRAWAL REFUSED: ${data.error}`);
-      }
+      alert(`✅ LIQUIDITY DISBURSED: ${data?.message ?? "Payout accepted."}`);
+      syncData?.();
     } catch (err) {
-      alert("VAULT CONNECTION ERROR");
+      logError("instant withdrawal failed", err);
+      setError(`❌ WITHDRAWAL REFUSED: ${errorMessage(err, "Vault connection error.")}`);
     } finally {
       setLoading(false);
     }
@@ -74,6 +60,12 @@ export default function TransactionHub({ syncData }: any) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
+      {error && (
+        <div className="md:col-span-2 bg-red-100 border-4 border-red-600 text-red-700 p-4 font-black uppercase text-xs">
+          {error}
+        </div>
+      )}
+
       {/* TRANSFER BOX */}
       <div className="border-4 border-black p-6 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
         <h3 className="font-black uppercase italic text-xl mb-4 border-b-2 border-black">P2P Node Transfer</h3>

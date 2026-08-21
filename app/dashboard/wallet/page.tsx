@@ -2,18 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
+import { ApiRecord, apiFetch, errorMessage, logError, toText } from "../../lib/api";
 
 export default function WalletPage() {
   const [balance, setBalance] = useState(0);
   const [amount, setAmount] = useState("10.00");
+  const [error, setError] = useState("");
 
   const updateBalance = async () => {
-    const token = localStorage.getItem("token");
-    const res = await fetch("http://127.0.0.1:8080/api/account/balance", {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    const data = await res.json();
-    setBalance(data.balance || 0);
+    try {
+      const data = await apiFetch<ApiRecord>("/api/account/balance");
+      setBalance(Number(data?.balance) || 0);
+      setError("");
+    } catch (err) {
+      logError("balance fetch failed", err);
+      setError(errorMessage(err, "Could not read the vault balance."));
+    }
   };
 
   useEffect(() => { updateBalance(); }, []);
@@ -25,6 +29,11 @@ export default function WalletPage() {
         <p className="text-4xl font-mono text-green-600 font-bold mt-4">
           ${balance.toFixed(2)}
         </p>
+        {error && (
+          <p className="mt-4 bg-red-100 border-4 border-red-600 text-red-700 p-3 font-black uppercase text-xs">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="max-w-md border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
@@ -45,30 +54,44 @@ export default function WalletPage() {
             forceReRender={[amount]}
             style={{ layout: "vertical", color: "black", shape: "rect" }}
             createOrder={async () => {
-              const res = await fetch("http://127.0.0.1:8080/api/paypal/create-order", {
-                method: "POST",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ amount })
-              });
-              const order = await res.json();
-              return order.id;
+              try {
+                const order = await apiFetch<ApiRecord>("/api/paypal/create-order", {
+                  method: "POST",
+                  body: JSON.stringify({ amount })
+                });
+                const orderId = toText(order?.id);
+                if (!orderId) throw new Error("Gateway returned no order id.");
+                setError("");
+                return orderId;
+              } catch (err) {
+                logError("paypal order creation failed", err);
+                setError(errorMessage(err, "Could not open the payment gateway."));
+                // Rethrow so the PayPal SDK aborts the flow instead of
+                // proceeding with an undefined order id.
+                throw err;
+              }
             }}
             onApprove={async (data) => {
-              const res = await fetch("http://127.0.0.1:8080/api/paypal/capture-order", {
-                method: "POST",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ orderID: data.orderID })
-              });
-              if (res.ok) {
+              try {
+                await apiFetch("/api/paypal/capture-order", {
+                  method: "POST",
+                  body: JSON.stringify({ orderID: data.orderID })
+                });
+                setError("");
                 alert("CAPITAL SECURED.");
-                updateBalance();
+                await updateBalance();
+              } catch (err) {
+                logError("paypal capture failed", err);
+                // A failed capture on an approved payment must never look
+                // like a no-op: the operator has to know money may be held.
+                setError(
+                  `${errorMessage(err, "Capture failed.")} Payment was approved but not captured — contact support with order ${data.orderID}.`
+                );
               }
+            }}
+            onError={(err) => {
+              logError("paypal sdk error", err);
+              setError("Payment gateway error. No funds were moved.");
             }}
           />
         </PayPalScriptProvider>

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { apiFetch, errorMessage, logError } from "../lib/api";
 
 export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
   const [formData, setFormData] = useState({
@@ -14,26 +15,17 @@ export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const token = localStorage.getItem("token");
 
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/kyc/submit", {
+      await apiFetch("/api/kyc/submit", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify(formData),
       });
-
-      if (res.ok) {
-        setMessage("✅ Identity Submitted. Awaiting Admin Review.");
-        onStatusUpdate("SUBMITTED");
-      } else {
-        setMessage("❌ Submission Failed. Check all fields.");
-      }
+      setMessage("✅ Identity Submitted. Awaiting Admin Review.");
+      onStatusUpdate?.("SUBMITTED");
     } catch (err) {
-      setMessage("❌ Vault Connection Error.");
+      logError("kyc submission failed", err);
+      setMessage(`❌ ${errorMessage(err, "Submission failed. Check all fields.")}`);
     } finally {
       setLoading(false);
     }

@@ -1,51 +1,47 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { ApiRecord, apiFetch, apiFetchArray, errorMessage, logError } from "../../lib/api";
 
 export default function AiTerminal() {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [selectedAsset, setSelectedAsset] = useState("");
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
+  const [error, setError] = useState("");
 
   // Fetch the available assets from the market engine
   useEffect(() => {
     const fetchMarket = async () => {
-      const res = await fetch(`${API_URL}/api/market/stocks`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const assetList = data.map((s: any) => s.symbol);
+      try {
+        const data = await apiFetchArray<ApiRecord>("/api/market/stocks");
+        const assetList = data.map((s: any) => s?.symbol).filter((s: unknown): s is string => typeof s === "string");
         setSymbols(assetList);
         if (assetList.length > 0) setSelectedAsset(assetList[0]);
+        else setError("Market engine returned no tradable assets.");
+      } catch (err) {
+        logError("asset list fetch failed", err);
+        setError(errorMessage(err, "Could not load the asset list."));
       }
     };
     fetchMarket();
   }, []);
 
   const runQuantModel = async () => {
+    if (!selectedAsset) {
+      setError("Select an asset before running the model.");
+      return;
+    }
     setLoading(true);
     setAnalysis(null);
+    setError("");
     try {
-      const res = await fetch(`${API_URL}/api/ai/analyze`, {
+      setAnalysis(await apiFetch<ApiRecord>("/api/ai/analyze", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
-        },
         body: JSON.stringify({ symbol: selectedAsset })
-      });
-      if (res.ok) {
-        setAnalysis(await res.json());
-      } else {
-        // We pull the exact error message from the backend instead of guessing
-        const errorData = await res.json();
-        alert(`SYSTEM REJECTION: ${errorData.error || "Unknown Error"}`);
-      }
+      }));
     } catch (err) {
-      alert("AI MAINFRAME OFFLINE.");
+      logError("quant analysis failed", err);
+      setError(`SYSTEM REJECTION: ${errorMessage(err, "AI mainframe offline.")}`);
     } finally {
       setLoading(false);
     }
@@ -84,6 +80,12 @@ export default function AiTerminal() {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-100 border-4 border-red-600 text-red-700 p-4 font-black uppercase text-xs">
+          {error}
+        </div>
+      )}
+
       {/* OUTPUT HUD */}
       {analysis && (
         <div className="bg-zinc-100 border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -92,11 +94,11 @@ export default function AiTerminal() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="bg-white border-4 border-black p-4">
                     <p className="text-[10px] font-black uppercase text-zinc-400 mb-1">Current Tick Price</p>
-                    <p className="text-3xl font-black tabular-nums">${analysis.currentPrice.toLocaleString()}</p>
+                    <p className="text-3xl font-black tabular-nums">${Number(analysis.currentPrice ?? 0).toLocaleString()}</p>
                 </div>
-                <div className={`border-4 border-black p-4 ${analysis.recommendation.includes('BUY') ? 'bg-green-100' : analysis.recommendation.includes('SELL') ? 'bg-red-100' : 'bg-yellow-100'}`}>
+                <div className={`border-4 border-black p-4 ${String(analysis.recommendation).includes('BUY') ? 'bg-green-100' : String(analysis.recommendation).includes('SELL') ? 'bg-red-100' : 'bg-yellow-100'}`}>
                     <p className="text-[10px] font-black uppercase text-black mb-1">System Directive</p>
-                    <p className="text-3xl font-black">{analysis.recommendation}</p>
+                    <p className="text-3xl font-black">{analysis.recommendation ?? "N/A"}</p>
                 </div>
             </div>
 

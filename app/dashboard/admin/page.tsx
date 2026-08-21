@@ -1,39 +1,47 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { apiFetch, readJson, type ApiJson } from "../../lib/api";
 
 export default function AdminHQ() {
   const router = useRouter();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [stats, setStats] = useState({ totalRev: 0, activeUsers: 0 });
 
-  const fetchAdminData = async () => {
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch(`${API_URL}/api/admin/all-transactions`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+  const denyAccess = () => {
+    alert("CRITICAL: Administrative Clearance Required.");
+    router.replace("/dashboard");
+  };
 
-      if (res.status === 403) {
-        alert("CRITICAL: Administrative Clearance Required.");
-        router.push("/dashboard");
+  const fetchAdminData = async () => {
+    try {
+      const res = await apiFetch("/api/admin/all-transactions");
+
+      if (!res.ok) {
+        denyAccess();
         return;
       }
 
-      const data = await res.json();
+      const data = await readJson<ApiJson[]>(res);
+      if (!Array.isArray(data)) {
+        denyAccess();
+        return;
+      }
+
       setLogs(data);
 
       const revenue = data.reduce((acc: number, log: any) => {
         // Absolute value for revenue tracking
-        return (log.type.includes("LICENSE") || log.type.includes("PURCHASE")) ? acc + Math.abs(log.amount) : acc;
+        const type = String(log?.type ?? "");
+        return (type.includes("LICENSE") || type.includes("PURCHASE")) ? acc + Math.abs(Number(log?.amount) || 0) : acc;
       }, 0);
-      
+
       setStats({ totalRev: revenue, activeUsers: new Set(data.map((l: any) => l.userEmail)).size });
+      setAuthorized(true);
     } catch (err) {
-      console.error("ADMIN LINK FAILURE");
+      denyAccess();
     } finally {
       setLoading(false);
     }
@@ -41,7 +49,7 @@ export default function AdminHQ() {
 
   useEffect(() => { fetchAdminData(); }, []);
 
-  if (loading) return (
+  if (loading || !authorized) return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center font-mono text-[#00ff41]">
       <div className="animate-pulse tracking-[0.2em] font-black uppercase">Decrypting Ledger...</div>
     </div>

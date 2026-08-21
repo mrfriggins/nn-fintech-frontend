@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { apiJson, readJson } from "../lib/api";
+import { isValidEmail, parseAmount } from "../lib/validation";
 
 export default function TransactionHub({ syncData }: any) {
   const [transferData, setTransferData] = useState({ email: "", amount: "" });
@@ -9,26 +11,24 @@ export default function TransactionHub({ syncData }: any) {
   // --- 1. THE AUTOMATED P2P TRANSFER ---
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const amount = parseAmount(transferData.amount);
+    if (!amount) return alert("TRANSFER FAILED: Enter a valid amount.");
+    if (!isValidEmail(transferData.email)) return alert("TRANSFER FAILED: Enter a valid recipient email.");
+
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/transfer/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ 
-          recipientEmail: transferData.email, 
-          amount: transferData.amount 
-        }),
+      const res = await apiJson("/api/transfer/send", {
+        recipientEmail: transferData.email.trim(),
+        amount,
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) {
         alert("TRANSFER SUCCESSFUL: Capital Moved.");
         syncData();
       } else {
-        alert(`TRANSFER FAILED: ${data.error}`);
+        alert(`TRANSFER FAILED: ${data?.error ?? "Request rejected."}`);
       }
     } catch (err) {
       alert("VAULT CONNECTION ERROR");
@@ -40,30 +40,27 @@ export default function TransactionHub({ syncData }: any) {
   // --- 2. THE NEW INSTANT PAYOUT (DIRECT TO PAYPAL) ---
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const amount = parseAmount(withdrawAmount);
+    if (!amount) return alert("❌ WITHDRAWAL REFUSED: Enter a valid amount.");
+
     const paypalEmail = prompt("CRITICAL: Enter the PayPal Email to receive funds:");
     if (!paypalEmail) return;
+    if (!isValidEmail(paypalEmail)) return alert("❌ WITHDRAWAL REFUSED: Invalid PayPal email.");
 
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/withdraw/instant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ 
-          amount: withdrawAmount, 
-          paypalEmail: paypalEmail 
-        }),
+      const res = await apiJson("/api/withdraw/instant", {
+        amount,
+        paypalEmail: paypalEmail.trim(),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) {
-        alert(`✅ LIQUIDITY DISBURSED: ${data.message}`);
+        alert(`✅ LIQUIDITY DISBURSED: ${data?.message ?? "Payout queued."}`);
         syncData();
       } else {
-        alert(`❌ WITHDRAWAL REFUSED: ${data.error}`);
+        alert(`❌ WITHDRAWAL REFUSED: ${data?.error ?? "Request rejected."}`);
       }
     } catch (err) {
       alert("VAULT CONNECTION ERROR");

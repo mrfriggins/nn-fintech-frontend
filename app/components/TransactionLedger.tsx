@@ -1,18 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import { apiFetch, readJson } from "../lib/api";
 
 export default function TransactionLedger() {
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLedger = async () => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/account/transactions", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setTransactions(data);
+      const res = await apiFetch("/api/account/transactions");
+      const data = res.ok ? await readJson<unknown>(res) : null;
+      setTransactions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Ledger Sync Failure");
     } finally {

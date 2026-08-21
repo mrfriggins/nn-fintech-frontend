@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { apiFetch, apiJson, readJson, type ApiJson } from "../../lib/api";
 
 export default function AiTerminal() {
   const [symbols, setSymbols] = useState<string[]>([]);
@@ -12,14 +11,15 @@ export default function AiTerminal() {
   // Fetch the available assets from the market engine
   useEffect(() => {
     const fetchMarket = async () => {
-      const res = await fetch(`${API_URL}/api/market/stocks`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
+      try {
+        const res = await apiFetch("/api/market/stocks");
+        const data = res.ok ? await readJson<ApiJson[]>(res) : null;
+        if (!Array.isArray(data)) return;
         const assetList = data.map((s: any) => s.symbol);
         setSymbols(assetList);
         if (assetList.length > 0) setSelectedAsset(assetList[0]);
+      } catch {
+        setSymbols([]);
       }
     };
     fetchMarket();
@@ -29,20 +29,13 @@ export default function AiTerminal() {
     setLoading(true);
     setAnalysis(null);
     try {
-      const res = await fetch(`${API_URL}/api/ai/analyze`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
-        },
-        body: JSON.stringify({ symbol: selectedAsset })
-      });
+      const res = await apiJson("/api/ai/analyze", { symbol: selectedAsset });
       if (res.ok) {
-        setAnalysis(await res.json());
+        setAnalysis(await readJson(res));
       } else {
         // We pull the exact error message from the backend instead of guessing
-        const errorData = await res.json();
-        alert(`SYSTEM REJECTION: ${errorData.error || "Unknown Error"}`);
+        const errorData = await readJson(res);
+        alert(`SYSTEM REJECTION: ${errorData?.error || "Unknown Error"}`);
       }
     } catch (err) {
       alert("AI MAINFRAME OFFLINE.");

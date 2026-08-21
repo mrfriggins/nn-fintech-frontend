@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 // Added IChartApi and ISeriesApi to satisfy TypeScript's strict mode
 import { createChart, ColorType, CandlestickSeries, Time, IChartApi, ISeriesApi } from "lightweight-charts";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { apiFetch, apiJson, readJson, type ApiJson } from "../../lib/api";
+import { parseAmount } from "../../lib/validation";
 
 export default function TradeTerminal() {
   const [stocks, setStocks] = useState<any[]>([]);
@@ -77,12 +77,11 @@ export default function TradeTerminal() {
 
   // --- 2. LIVE MARKET SYNCHRONIZATION ---
   const fetchMarketData = async () => {
-    const headers = { "Authorization": `Bearer ${localStorage.getItem("token")}` };
-    
     try {
-      const stockRes = await fetch(`${API_URL}/api/market/stocks`, { headers });
+      const stockRes = await apiFetch("/api/market/stocks");
       if (stockRes.ok) {
-          const liveStocks = await stockRes.json();
+          const liveStocks = await readJson<ApiJson[]>(stockRes);
+          if (!Array.isArray(liveStocks)) return;
           setStocks(liveStocks);
 
           const activeStockData = liveStocks.find((s: any) => s.symbol === activeAsset);
@@ -102,10 +101,10 @@ export default function TradeTerminal() {
           }
       }
 
-      const accRes = await fetch(`${API_URL}/api/account/balance`, { headers });
+      const accRes = await apiFetch("/api/account/balance");
       if (accRes.ok) {
-          const data = await accRes.json();
-          setDemoBalance(data.demoBalance);
+          const data = await readJson(accRes);
+          setDemoBalance(data?.demoBalance ?? 0);
       }
     } catch (err) {
       console.error("Market fetch failed", err);
@@ -120,22 +119,19 @@ export default function TradeTerminal() {
 
   // --- 3. EXECUTION ENGINE ---
   const executePaperTrade = async () => {
-    if (!tradeAmount || parseFloat(tradeAmount) <= 0) return alert("Enter valid capital.");
+    const amount = parseAmount(tradeAmount);
+    if (!amount) return alert("Enter valid capital.");
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/trade/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: activeAsset, amount: tradeAmount }),
-      });
-      
-      const data = await res.json();
+      const res = await apiJson("/api/trade/execute", { symbol: activeAsset, amount });
+
+      const data = await readJson(res);
       if (res.ok) {
-        setDemoBalance(data.demoBalance);
+        setDemoBalance(data?.demoBalance ?? 0);
         setTradeAmount("");
       } else {
-        alert(`TRADE REJECTED: ${data.error}`);
+        alert(`TRADE REJECTED: ${data?.error ?? "Order rejected."}`);
       }
     } catch (err) { 
       alert("Terminal Error."); 

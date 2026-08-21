@@ -70,7 +70,7 @@ export default function TradeTerminal() {
   // --- 2. LIVE MARKET SYNCHRONIZATION ---
   const fetchMarketData = async () => {
     try {
-      const stockResult = await requestGet<any[]>("/api/market/stocks");
+      const stockResult = await requestGet("/api/market/stocks");
       if (stockResult.ok) {
           const liveStocks = stockResult.data || [];
           setStocks(liveStocks);

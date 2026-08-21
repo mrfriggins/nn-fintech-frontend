@@ -12,7 +12,7 @@ export default function AdminHQ() {
 
   const fetchAdminData = async () => {
     try {
-      const result = await requestGet<any[]>("/api/admin/all-transactions");
+      const result = await requestGet("/api/admin/all-transactions");
 
       if (result.status === 403) {
         alert("CRITICAL: Administrative Clearance Required.");

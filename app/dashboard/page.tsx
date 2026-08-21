@@ -167,7 +167,7 @@ export default function UnifiedSystemPortal() {
 
   const fetchMarketData = async () => {
     try {
-      const result = await requestGet<any[]>("/api/market/stream");
+      const result = await requestGet("/api/market/stream");
       if (result.ok) {
         const data = result.data;
         if (Array.isArray(data) && data.length > 0) {
@@ -354,7 +354,7 @@ export default function UnifiedSystemPortal() {
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-6 w-full md:w-auto">
           <span className="text-green-500 font-bold tracking-widest text-[10px] md:text-sm w-full text-center md:w-auto">NN-FINTECH LAYER 1</span>
           <span className="text-[9px] md:text-xs text-gray-500 bg-gray-950 px-2 py-1 border border-gray-800">AI: {operatesPremium ? "AUTH" : "LVL 1"}</span>
-          <span className="text-[9px] md:text-xs text-green-400 bg-gray-950 px-2 py-1 border border-gray-800">BAL: ${user?.demoBalance === undefined ? "" : formatUsdAmount(user.demoBalance, { minimumFractionDigits: 2 })}</span>
+          <span className="text-[9px] md:text-xs text-green-400 bg-gray-950 px-2 py-1 border border-gray-800">BAL: ${user?.demoBalance == null ? "" : formatUsdAmount(user.demoBalance, { minimumFractionDigits: 2 })}</span>
         </div>
         <button onClick={logout} className="text-[9px] md:text-xs border border-red-900 text-red-500 px-3 py-1 hover:bg-red-950/30 w-full md:w-auto mt-2 md:mt-0">DISCONNECT_NODE</button>
       </header>

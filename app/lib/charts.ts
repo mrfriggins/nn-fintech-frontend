@@ -39,7 +39,7 @@ export const generateSimulatedHistory = ({
   volatilityReference = "base",
 }: HistoryOptions): Candle[] => {
   const history: Candle[] = [];
-  let time = Math.floor(Date.now() / 1000) - (count * barInterval);
+  const time = Math.floor(Date.now() / 1000) - (count * barInterval);
   let lastClose = initialPrice;
 
   for (let i = 0; i < count; i++) {
@@ -89,7 +89,6 @@ export const createCandlestickChart = (
   chart: IChartApi;
   series: ISeriesApi<"Candlestick">;
 } => {
-  const borderColor = options.borderColor ?? options.gridColor;
   const chart = createChart(container, {
     layout: {
       background: { type: ColorType.Solid, color: options.backgroundColor },
@@ -105,9 +104,11 @@ export const createCandlestickChart = (
     timeScale: {
       timeVisible: options.timeVisible,
       secondsVisible: options.secondsVisible,
-      ...(options.borderColor === undefined ? {} : { borderColor }),
+      ...(options.borderColor === undefined ? {} : { borderColor: options.borderColor }),
     },
-    rightPriceScale: { borderColor },
+    ...(options.borderColor === undefined
+      ? {}
+      : { rightPriceScale: { borderColor: options.borderColor } }),
   });
   const series = chart.addSeries(CandlestickSeries, {
     upColor: options.upColor,

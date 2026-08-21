@@ -17,5 +17,6 @@ export const usePolling = (
     callbackRef.current();
     const interval = setInterval(() => callbackRef.current(), intervalMs);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- caller-provided dependencies intentionally control polling restarts
   }, [enabled, intervalMs, ...deps]);
 };

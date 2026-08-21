@@ -12,7 +12,7 @@ export default function AiTerminal() {
   // Fetch the available assets from the market engine
   useEffect(() => {
     const fetchMarket = async () => {
-      const result = await requestGet<any[]>("/api/market/stocks");
+      const result = await requestGet("/api/market/stocks");
       if (result.ok) {
         const data = result.data || [];
         const assetList = data.map((s: any) => s.symbol);
@@ -82,7 +82,7 @@ export default function AiTerminal() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="bg-white border-4 border-black p-4">
                     <p className="text-[10px] font-black uppercase text-zinc-400 mb-1">Current Tick Price</p>
-            <p className="text-3xl font-black tabular-nums">${formatUsdAmount(analysis.currentPrice)}</p>
+                    <p className="text-3xl font-black tabular-nums">${formatUsdAmount(analysis.currentPrice)}</p>
                 </div>
                 <div className={`border-4 border-black p-4 ${analysis.recommendation.includes('BUY') ? 'bg-green-100' : analysis.recommendation.includes('SELL') ? 'bg-red-100' : 'bg-yellow-100'}`}>
                     <p className="text-[10px] font-black uppercase text-black mb-1">System Directive</p>

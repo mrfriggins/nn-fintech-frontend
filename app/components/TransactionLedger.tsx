@@ -1,16 +1,16 @@
 "use client";
 import { useState } from "react";
 import { requestGet } from "@/app/lib/api";
-import { formatSignedAmount, formatTimestamp, signColorClass } from "@/app/lib/formatting";
+import { formatTimestamp, formatUsdAmount, signColorClass } from "@/app/lib/formatting";
 import { usePolling } from "@/app/lib/polling";
 
 export default function TransactionLedger() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLedger = async () => {
     try {
-      const result = await requestGet<any[]>("/api/account/transactions");
+      const result = await requestGet("/api/account/transactions");
       setTransactions(result.data || []);
     } catch (err) {
       console.error("Ledger Sync Failure");
@@ -44,7 +44,7 @@ export default function TransactionLedger() {
               
               <div className="text-right">
                 <span className={`text-sm font-black ${signColorClass(tx.amount, 'text-green-500', 'text-red-500')}`}>
-                  {formatSignedAmount(tx.amount, { grouping: false })} USD
+                  {tx.amount > 0 ? "+" : ""}{formatUsdAmount(tx.amount, { grouping: false })} USD
                 </span>
                 
                 {/* BACKEND STATUS HANDSHAKE */}

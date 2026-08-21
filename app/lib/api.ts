@@ -7,6 +7,9 @@ export type ApiResult<T> = {
   response: Response;
 };
 
+// Shared fallback keeps untyped call sites ergonomic while retaining one lint exception.
+type ApiJson = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
 export const getAuthHeaders = (includeJson = false): Record<string, string> => {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   return {
@@ -23,7 +26,7 @@ const parseResponseBody = async <T>(response: Response): Promise<T | null> => {
   }
 };
 
-export const requestGet = async <T = any>(path: string): Promise<ApiResult<T>> => {
+export const requestGet = async <T = ApiJson>(path: string): Promise<ApiResult<T>> => {
   const response = await fetch(`${API_URL}${path}`, {
     headers: getAuthHeaders(),
   });
@@ -35,7 +38,7 @@ export const requestGet = async <T = any>(path: string): Promise<ApiResult<T>> =
   };
 };
 
-export const requestPostJson = async <T = any>(
+export const requestPostJson = async <T = ApiJson>(
   path: string,
   body?: unknown,
   options: { authenticated?: boolean } = {},

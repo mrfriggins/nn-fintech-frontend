@@ -1,17 +1,19 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { apiFetch, readJson } from "../../lib/api";
 
 export default function TransactionsPage() {
-  const [txs, setTxs] = useState([]);
+  const [txs, setTxs] = useState<unknown[]>([]);
 
   useEffect(() => {
     const fetchTxs = async () => {
-      const res = await fetch(`${API_URL}/api/account/transactions`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
-      });
-      if (res.ok) setTxs(await res.json());
+      try {
+        const res = await apiFetch("/api/account/transactions");
+        const data = res.ok ? await readJson<unknown>(res) : null;
+        setTxs(Array.isArray(data) ? data : []);
+      } catch {
+        setTxs([]);
+      }
     };
     fetchTxs();
   }, []);

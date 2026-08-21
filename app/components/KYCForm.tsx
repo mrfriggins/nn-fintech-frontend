@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { apiJson, UnauthenticatedError } from "../lib/api";
+import { isSafeHttpUrl } from "../lib/validation";
 
 export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
   const [formData, setFormData] = useState({
@@ -13,18 +15,16 @@ export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isSafeHttpUrl(formData.documentUrl)) {
+      setMessage("❌ Document link must be an http(s) URL.");
+      return;
+    }
+
     setLoading(true);
-    const token = localStorage.getItem("token");
 
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/kyc/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await apiJson("/api/kyc/submit", formData);
 
       if (res.ok) {
         setMessage("✅ Identity Submitted. Awaiting Admin Review.");
@@ -33,7 +33,11 @@ export default function KYCForm({ kycStatus, onStatusUpdate }: any) {
         setMessage("❌ Submission Failed. Check all fields.");
       }
     } catch (err) {
-      setMessage("❌ Vault Connection Error.");
+      setMessage(
+        err instanceof UnauthenticatedError
+          ? "❌ Session expired. Sign in again."
+          : "❌ Vault Connection Error.",
+      );
     } finally {
       setLoading(false);
     }

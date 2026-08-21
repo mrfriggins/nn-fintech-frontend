@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
+import { apiJson } from "../../lib/api";
+import { parseAmount } from "../../lib/validation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
 
 export default function DepositPage() {
   const [amount, setAmount] = useState("");
@@ -10,6 +12,8 @@ export default function DepositPage() {
 
   // 1. DYNAMICALLY INJECT THE PAYPAL SECURE SCRIPT
   useEffect(() => {
+    if (!PAYPAL_CLIENT_ID) return;
+
     if (document.querySelector("#paypal-script")) {
         setScriptLoaded(true);
         return;
@@ -17,8 +21,7 @@ export default function DepositPage() {
     
     const script = document.createElement("script");
     script.id = "paypal-script";
-    // CEO ACTION REQUIRED: Replace 'test' with your actual PayPal Sandbox Client ID
-    script.src = `https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&currency=USD`;
     script.async = true;
     script.onload = () => setScriptLoaded(true);
     document.body.appendChild(script);
@@ -27,9 +30,9 @@ export default function DepositPage() {
   // 2. LOCK THE CAPITAL AMOUNT
   const lockCapital = (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(amount);
-    if (isNaN(val) || val < 1) return alert("Minimum institutional deposit is $1.00 USD.");
-    setLockedAmount(val.toFixed(2));
+    const normalizedAmount = parseAmount(amount, { min: 1 });
+    if (!normalizedAmount) return alert("Deposit must be between $1.00 and $1,000,000.00 USD.");
+    setLockedAmount(normalizedAmount);
   };
 
   // 3. SUMMON THE SECURE GATEWAY (Bypassing TypeScript with "as any")
@@ -47,14 +50,7 @@ export default function DepositPage() {
         },
         onApprove: async (data: any, actions: any) => {
           // Send the authorization to your backend vault to verify and capture
-          const res = await fetch(`${API_URL}/api/deposit/capture`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("token")}`
-            },
-            body: JSON.stringify({ orderID: data.orderID })
-          });
+          const res = await apiJson("/api/deposit/capture", { orderID: data.orderID });
 
           if (res.ok) {
             alert("CAPITAL SECURED: Real Vault Liquidity Updated.");
@@ -115,7 +111,13 @@ export default function DepositPage() {
             <p className="text-[10px] font-bold text-zinc-500 uppercase text-center">Select Payment Gateway</p>
             
             {/* PAYPAL SDK TARGET RENDER AREA */}
-            <div id="paypal-button-container" className="min-h-[150px]"></div>
+            {!PAYPAL_CLIENT_ID ? (
+              <p className="text-[10px] font-black uppercase text-red-600 text-center">
+                Payment gateway unavailable: NEXT_PUBLIC_PAYPAL_CLIENT_ID is not configured.
+              </p>
+            ) : (
+              <div id="paypal-button-container" className="min-h-[150px]"></div>
+            )}
           </div>
         )}
       </div>

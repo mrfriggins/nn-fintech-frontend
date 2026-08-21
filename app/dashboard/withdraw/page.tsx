@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { apiJson, readJson } from "../../lib/api";
+import { isValidEmail, parseAmount } from "../../lib/validation";
 
 export default function WithdrawPage() {
   const [amount, setAmount] = useState("");
@@ -10,22 +10,23 @@ export default function WithdrawPage() {
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const normalizedAmount = parseAmount(amount);
+    if (!normalizedAmount) return alert("ERROR: Enter a valid amount.");
+    if (!isValidEmail(paypalEmail)) return alert("ERROR: Enter a valid PayPal email.");
+
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/withdraw/instant`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ amount, paypalEmail }),
+      const res = await apiJson("/api/withdraw/instant", {
+        amount: normalizedAmount,
+        paypalEmail: paypalEmail.trim(),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) {
         alert("LIQUIDITY DISBURSED: Check your PayPal.");
         window.location.href = "/dashboard";
       } else {
-        alert(`ERROR: ${data.error}`);
+        alert(`ERROR: ${data?.error ?? "Request rejected."}`);
       }
     } catch (err) { alert("GATEWAY OFFLINE"); }
     finally { setLoading(false); }

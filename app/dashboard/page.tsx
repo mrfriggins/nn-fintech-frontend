@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_URL, apiFetch, apiJson, clearToken, getToken, readJson } from "../lib/api";
+import { isSafeHttpUrl, parseAmount } from "../lib/validation";
 
 type ChartCandle = {
   open: number;
@@ -35,7 +37,6 @@ const createDemoMarketTick = () =>
 export default function UnifiedSystemPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
   const [authMode, setAuthMode] = useState<"login" | "register" | "verify">("login");
   const [showPassword, setShowPassword] = useState(false);
@@ -119,15 +120,15 @@ export default function UnifiedSystemPortal() {
   }, [marketAssets, selectedAsset]);
 
   const checkSession = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) { setIsInitializing(false); return; }
+    if (!getToken()) { setIsInitializing(false); return; }
     try {
-      const res = await fetch(`${API_URL}/api/users/profile`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch("/api/users/profile");
       if (res.ok) {
-        setUser(await res.json());
+        setUser(await readJson(res));
         setIsAuthenticated(true);
       } else {
-        localStorage.removeItem("token");
+        clearToken();
+        setIsAuthenticated(false);
       }
     } catch (e) { }
     setIsInitializing(false);
@@ -139,7 +140,7 @@ export default function UnifiedSystemPortal() {
       const res = await fetch(`${API_URL}/auth/${endpoint}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      const data = await readJson(res);
       setAuthLoading(false);
       return { ok: res.ok, data };
     } catch (err) {
@@ -152,7 +153,7 @@ export default function UnifiedSystemPortal() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const { ok, data } = await executeAuthCall("login", { email, password });
-    if (ok) { localStorage.setItem("token", data.token); checkSession(); }
+    if (ok && data?.token) { localStorage.setItem("token", data.token); checkSession(); }
     else if (data?.error === "Verify email first.") setAuthMode("verify");
     else setAuthError(data?.error || "Login rejected.");
   };
@@ -167,18 +168,18 @@ export default function UnifiedSystemPortal() {
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     const { ok, data } = await executeAuthCall("verify", { email, otp });
-    if (ok) { localStorage.setItem("token", data.token); checkSession(); }
+    if (ok && data?.token) { localStorage.setItem("token", data.token); checkSession(); }
     else setAuthError(data?.error || "Verification failed.");
   };
 
   const switchAuthMode = (mode: any) => { setAuthMode(mode); setAuthError(""); setAuthSuccess(""); setShowPassword(false); };
-  const logout = () => { localStorage.removeItem("token"); setIsAuthenticated(false); setUser(null); };
+  const logout = () => { clearToken(); setIsAuthenticated(false); setUser(null); };
 
   const fetchMarketData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/market/stream`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const res = await apiFetch("/api/market/stream");
       if (res.ok) {
-        const data = await res.json(); 
+        const data = await readJson(res); 
         if (Array.isArray(data) && data.length > 0) {
           setMarketAssets(data);
           if (!selectedAsset) setSelectedAsset(data[0]);
@@ -198,37 +199,39 @@ export default function UnifiedSystemPortal() {
   const fetchPredictiveSignal = async (symbol: string) => {
     setAlgoSignal(null);
     try {
-      const res = await fetch(`${API_URL}/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-      const data = await res.json();
+      const res = await apiFetch(`/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`);
+      const data = await readJson(res);
       if (res.ok) setAlgoSignal(data);
-      else if (data.paymentRequired) setAlgoSignal({ locked: true });
+      else if (data?.paymentRequired) setAlgoSignal({ locked: true });
     } catch (e) { setAlgoSignal({ locked: true }); }
   };
 
   const handleExecuteTrade = async (side: "buy" | "sell") => {
     if (!selectedAsset) return;
+
+    const amount = parseAmount(tradeAmount);
+    if (!amount) return alert("Denied: Enter a valid position size.");
+    if (stopLoss && !parseAmount(stopLoss)) return alert("Denied: Enter a valid stop loss price.");
+    if (takeProfit && !parseAmount(takeProfit)) return alert("Denied: Enter a valid take profit price.");
+
     try {
-      const res = await fetch(`${API_URL}/api/trade/execute`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: selectedAsset.symbol, side, amount: Number(tradeAmount), sl: stopLoss, tp: takeProfit })
+      const res = await apiJson("/api/trade/execute", {
+        symbol: selectedAsset.symbol, side, amount: Number(amount), sl: stopLoss, tp: takeProfit
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) { 
-        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: [...(prev.activePositions || []), data.position] })); 
+        setUser((prev: any) => ({ ...prev, demoBalance: data?.newBalance, activePositions: [...(prev.activePositions || []), data?.position] })); 
         setStopLoss(""); setTakeProfit("");
-      } else alert(`Denied: ${data.error}`);
+      } else alert(`Denied: ${data?.error ?? "Order rejected."}`);
     } catch (e) {}
   };
 
   const handleClosePosition = async (positionId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/trade/close`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ positionId })
-      });
-      const data = await res.json();
+      const res = await apiJson("/api/trade/close", { positionId });
+      const data = await readJson(res);
       if (res.ok) {
-        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: prev.activePositions.filter((p: any) => p.id !== positionId) }));
+        setUser((prev: any) => ({ ...prev, demoBalance: data?.newBalance, activePositions: prev.activePositions.filter((p: any) => p.id !== positionId) }));
       }
     } catch (e) {}
   };
@@ -236,12 +239,10 @@ export default function UnifiedSystemPortal() {
   const initializeCryptoCheckout = async () => {
     setIsCheckoutLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/payment/create`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` }
-      });
-      const data = await res.json();
-      if (res.ok && data.checkoutUrl) window.location.href = data.checkoutUrl;
-      else alert(data.error || "Could not launch processing module.");
+      const res = await apiJson("/api/payment/create", {});
+      const data = await readJson(res);
+      if (res.ok && typeof data?.checkoutUrl === "string" && isSafeHttpUrl(data.checkoutUrl)) window.location.href = data.checkoutUrl;
+      else alert(data?.error || "Could not launch processing module.");
     } catch (e) { alert("Billing engine endpoint unreachable."); }
     setIsCheckoutLoading(false);
   };
@@ -250,13 +251,10 @@ export default function UnifiedSystemPortal() {
     if (!aiQuestion) return;
     setIsAiLoading(true); setAiResponse("");
     try {
-      const res = await fetch(`${API_URL}/api/ai/openai/tutor`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ question: aiQuestion })
-      });
-      const data = await res.json(); 
-      if (res.ok) setAiResponse(data.tutorResponse);
-      else if (data.paymentRequired) setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
+      const res = await apiJson("/api/ai/openai/tutor", { question: aiQuestion });
+      const data = await readJson(res); 
+      if (res.ok) setAiResponse(data?.tutorResponse);
+      else if (data?.paymentRequired) setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
     } catch (error) { setAiResponse("[CRITICAL ERROR] Core connection failed."); }
     setIsAiLoading(false);
   };

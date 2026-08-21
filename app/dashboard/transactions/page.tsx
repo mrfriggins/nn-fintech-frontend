@@ -1,17 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { requestGet } from "@/app/lib/api";
+import { formatTimestamp, formatUsdAmount, signColorClass } from "@/app/lib/formatting";
 
 export default function TransactionsPage() {
-  const [txs, setTxs] = useState([]);
+  const [txs, setTxs] = useState<unknown[]>([]);
 
   useEffect(() => {
     const fetchTxs = async () => {
-      const res = await fetch(`${API_URL}/api/account/transactions`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
-      });
-      if (res.ok) setTxs(await res.json());
+      const result = await requestGet("/api/account/transactions");
+      if (result.ok) setTxs(result.data || []);
     };
     fetchTxs();
   }, []);
@@ -33,10 +31,10 @@ export default function TransactionsPage() {
             {txs.map((t: any, i: number) => (
               <tr key={i} className="font-bold text-sm">
                 <td className="p-4 uppercase">{t.type}</td>
-                <td className={`p-4 ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {t.amount >= 0 ? "+" : ""}${Math.abs(t.amount).toLocaleString()}
+                <td className={`p-4 ${signColorClass(t.amount, 'text-green-600', 'text-red-600', true)}`}>
+                  {t.amount >= 0 ? "+" : ""}${formatUsdAmount(t.amount, { absolute: true })}
                 </td>
-                <td className="p-4 text-zinc-400 text-xs">{new Date(t.date).toLocaleString()}</td>
+                <td className="p-4 text-zinc-400 text-xs">{formatTimestamp(t.date)}</td>
                 <td className="p-4"><span className="bg-zinc-100 px-2 py-1 text-[10px] uppercase border border-black">{t.status || "COMPLETED"}</span></td>
               </tr>
             ))}

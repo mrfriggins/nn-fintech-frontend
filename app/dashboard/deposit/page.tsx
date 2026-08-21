@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { requestPostJson } from "@/app/lib/api";
 
 export default function DepositPage() {
   const [amount, setAmount] = useState("");
@@ -47,16 +46,9 @@ export default function DepositPage() {
         },
         onApprove: async (data: any, actions: any) => {
           // Send the authorization to your backend vault to verify and capture
-          const res = await fetch(`${API_URL}/api/deposit/capture`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("token")}`
-            },
-            body: JSON.stringify({ orderID: data.orderID })
-          });
+          const result = await requestPostJson("/api/deposit/capture", { orderID: data.orderID });
 
-          if (res.ok) {
+          if (result.ok) {
             alert("CAPITAL SECURED: Real Vault Liquidity Updated.");
             window.location.href = "/dashboard";
           } else {

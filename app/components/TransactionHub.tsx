@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { requestPostJson } from "@/app/lib/api";
 
 export default function TransactionHub({ syncData }: any) {
   const [transferData, setTransferData] = useState({ email: "", amount: "" });
@@ -11,24 +12,16 @@ export default function TransactionHub({ syncData }: any) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/transfer/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ 
+      const result = await requestPostJson("/api/transfer/send", {
           recipientEmail: transferData.email, 
           amount: transferData.amount 
-        }),
-      });
+        });
 
-      const data = await res.json();
-      if (res.ok) {
+      if (result.ok) {
         alert("TRANSFER SUCCESSFUL: Capital Moved.");
         syncData();
       } else {
-        alert(`TRANSFER FAILED: ${data.error}`);
+        alert(`TRANSFER FAILED: ${result.data?.error}`);
       }
     } catch (err) {
       alert("VAULT CONNECTION ERROR");
@@ -46,24 +39,16 @@ export default function TransactionHub({ syncData }: any) {
 
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/withdraw/instant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ 
+      const result = await requestPostJson("/api/withdraw/instant", {
           amount: withdrawAmount, 
           paypalEmail: paypalEmail 
-        }),
-      });
+        });
 
-      const data = await res.json();
-      if (res.ok) {
-        alert(`✅ LIQUIDITY DISBURSED: ${data.message}`);
+      if (result.ok) {
+        alert(`✅ LIQUIDITY DISBURSED: ${result.data?.message}`);
         syncData();
       } else {
-        alert(`❌ WITHDRAWAL REFUSED: ${data.error}`);
+        alert(`❌ WITHDRAWAL REFUSED: ${result.data?.error}`);
       }
     } catch (err) {
       alert("VAULT CONNECTION ERROR");

@@ -1,7 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
-// V5 UPDATE: CandlestickSeries must be imported explicitly now
-import { createChart, ColorType, CandlestickSeries, Time } from "lightweight-charts";
+import {
+  attachChartResizeListener,
+  createCandlestickChart,
+  generateSimulatedHistory,
+  morphLiveCandle,
+} from "@/app/lib/charts";
 
 export default function CandleChart({ symbol, currentPrice }: { symbol: string, currentPrice: number }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -11,49 +15,40 @@ export default function CandleChart({ symbol, currentPrice }: { symbol: string, 
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // 1. Initialize Chart with Terminal Theme
-    const chart = createChart(chartContainerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: '#050505' }, textColor: '#4a4a4a' },
-      grid: { vertLines: { color: '#111' }, horzLines: { color: '#111' } },
-      width: chartContainerRef.current.clientWidth,
+    const { chart, series: candleSeries } = createCandlestickChart(chartContainerRef.current, {
       height: 300,
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#111' },
-      rightPriceScale: { borderColor: '#111' },
-    });
-
-    // 2. V5 COMPATIBLE SERIES INJECTION
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#00ff41', downColor: '#ff0000', borderVisible: false,
-      wickUpColor: '#00ff41', wickDownColor: '#ff0000',
+      backgroundColor: "#050505",
+      textColor: "#4a4a4a",
+      gridColor: "#111",
+      borderColor: "#111",
+      timeVisible: true,
+      secondsVisible: false,
+      upColor: "#00ff41",
+      downColor: "#ff0000",
+      wickUpColor: "#00ff41",
+      wickDownColor: "#ff0000",
     });
     seriesRef.current = candleSeries;
 
-    // 3. Generate Simulated Institutional History
-    const history = [];
-    let time = Math.floor(Date.now() / 1000) - (100 * 60); // 100 minutes ago
-    let lastClose = currentPrice * 0.95; // Start 5% lower
-
-    for (let i = 0; i < 100; i++) {
-      const open = lastClose + (Math.random() - 0.5) * (currentPrice * 0.005);
-      const close = open + (Math.random() - 0.5) * (currentPrice * 0.01);
-      const high = Math.max(open, close) + Math.random() * (currentPrice * 0.005);
-      const low = Math.min(open, close) - Math.random() * (currentPrice * 0.005);
-      history.push({ time: time as Time, open, high, low, close });
-      lastClose = close;
-      time += 60; // 1 minute candles
-    }
-    
+    const history = generateSimulatedHistory({
+      basePrice: currentPrice,
+      initialPrice: currentPrice * 0.95,
+      count: 100,
+      barInterval: 60,
+      openVolatility: 0.005,
+      closeVolatility: 0.01,
+      highVolatility: 0.005,
+      lowVolatility: 0.005,
+    });
     candleSeries.setData(history);
-    lastCandleRef.current = history[history.length - 1]; // Store the tip of the spear
+    lastCandleRef.current = history[history.length - 1];
+    const removeResizeListener = attachChartResizeListener(chart, chartContainerRef.current);
 
-    const handleResize = () => chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
-    window.addEventListener('resize', handleResize);
-
-    return () => { 
-      window.removeEventListener('resize', handleResize); 
-      chart.remove(); 
+    return () => {
+      removeResizeListener();
+      chart.remove();
     };
-  }, [symbol]); // Re-draw entirely when asset changes
+  }, [symbol]);
 
   // 4. Live Price Update Engine
   useEffect(() => {
@@ -61,14 +56,7 @@ export default function CandleChart({ symbol, currentPrice }: { symbol: string, 
     
     const last = lastCandleRef.current;
     
-    // Morph the live candle based on the incoming websocket/simulated tick
-    const updatedCandle = {
-        time: last.time,
-        open: last.open,
-        high: Math.max(last.high, currentPrice),
-        low: Math.min(last.low, currentPrice),
-        close: currentPrice,
-    };
+    const updatedCandle = morphLiveCandle(last, currentPrice);
     
     seriesRef.current.update(updatedCandle);
     lastCandleRef.current = updatedCandle; // Save state for next tick

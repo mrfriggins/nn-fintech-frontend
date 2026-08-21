@@ -1,9 +1,15 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-// Added IChartApi and ISeriesApi to satisfy TypeScript's strict mode
-import { createChart, ColorType, CandlestickSeries, Time, IChartApi, ISeriesApi } from "lightweight-charts";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { IChartApi, ISeriesApi } from "lightweight-charts";
+import {
+  attachChartResizeListener,
+  createCandlestickChart,
+  generateSimulatedHistory,
+  morphLiveCandle,
+} from "@/app/lib/charts";
+import { requestGet, requestPostJson } from "@/app/lib/api";
+import { changeColorClass, formatUsdAmount } from "@/app/lib/formatting";
+import { usePolling } from "@/app/lib/polling";
 
 export default function TradeTerminal() {
   const [stocks, setStocks] = useState<any[]>([]);
@@ -22,19 +28,16 @@ export default function TradeTerminal() {
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: "#09090b" }, textColor: "#a1a1aa" },
-      grid: { vertLines: { color: "#27272a" }, horzLines: { color: "#27272a" } },
-      width: chartContainerRef.current.clientWidth,
+    const { chart, series: candleSeries } = createCandlestickChart(chartContainerRef.current, {
       height: 500,
-      crosshair: { mode: 1 },
-      timeScale: { timeVisible: true, secondsVisible: true },
-    });
-
-    const candleSeries = chart.addSeries(CandlestickSeries, {
+      backgroundColor: "#09090b",
+      textColor: "#a1a1aa",
+      gridColor: "#27272a",
+      timeVisible: true,
+      secondsVisible: true,
+      crosshairMode: 1,
       upColor: "#22c55e",
       downColor: "#ef4444",
-      borderVisible: false,
       wickUpColor: "#22c55e",
       wickDownColor: "#ef4444",
     });
@@ -42,81 +45,55 @@ export default function TradeTerminal() {
     chartRef.current = chart;
     seriesRef.current = candleSeries;
 
-    const generateHistory = () => {
-      let data = [];
-      // STRICT FIX: Time must be a raw Unix timestamp (seconds), NOT a string or milliseconds
-      let timeInSeconds = Math.floor(Date.now() / 1000) - (100 * 60); 
-      let price = activeAsset === "BTC" ? 68000 : activeAsset === "NN-GOLD" ? 2300 : activeAsset === "TSLA" ? 175 : 180;
-      
-      for(let i=0; i<100; i++) {
-          let open = price;
-          let close = price + (Math.random() - 0.5) * (price * 0.005);
-          let high = Math.max(open, close) + Math.random() * (price * 0.002);
-          let low = Math.min(open, close) - Math.random() * (price * 0.002);
-          
-          // Cast the integer strictly as Time
-          const timestamp = (timeInSeconds + (i * 60)) as Time;
-          data.push({ time: timestamp, open, high, low, close });
-          price = close;
-      }
-      return data;
-    };
-
-    const history = generateHistory();
+    const basePrice = activeAsset === "BTC" ? 68000 : activeAsset === "NN-GOLD" ? 2300 : activeAsset === "TSLA" ? 175 : 180;
+    const history = generateSimulatedHistory({
+      basePrice,
+      count: 100,
+      barInterval: 60,
+      openVolatility: 0,
+      closeVolatility: 0.005,
+      highVolatility: 0.002,
+      lowVolatility: 0.002,
+      volatilityReference: "current",
+    });
     candleSeries.setData(history);
     currentBarRef.current = history[history.length - 1];
 
-    const handleResize = () => chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
-    window.addEventListener("resize", handleResize);
+    const removeResizeListener = attachChartResizeListener(chart, chartContainerRef.current);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      removeResizeListener();
       chart.remove();
     };
   }, [activeAsset]); 
 
   // --- 2. LIVE MARKET SYNCHRONIZATION ---
   const fetchMarketData = async () => {
-    const headers = { "Authorization": `Bearer ${localStorage.getItem("token")}` };
-    
     try {
-      const stockRes = await fetch(`${API_URL}/api/market/stocks`, { headers });
-      if (stockRes.ok) {
-          const liveStocks = await stockRes.json();
+      const stockResult = await requestGet("/api/market/stocks");
+      if (stockResult.ok) {
+          const liveStocks = stockResult.data || [];
           setStocks(liveStocks);
 
           const activeStockData = liveStocks.find((s: any) => s.symbol === activeAsset);
           if (activeStockData && seriesRef.current && currentBarRef.current) {
               const livePrice = activeStockData.price;
-              let currentBar = { ...currentBarRef.current };
-              
-              // STRICT FIX: Live time must also be an integer cast as Time
-              currentBar.time = Math.floor(Date.now() / 1000) as Time;
-              
-              currentBar.close = livePrice;
-              currentBar.high = Math.max(currentBar.high, livePrice);
-              currentBar.low = Math.min(currentBar.low, livePrice);
-              
+              const currentBar = morphLiveCandle(currentBarRef.current, livePrice, true);
               seriesRef.current.update(currentBar);
               currentBarRef.current = currentBar;
           }
       }
 
-      const accRes = await fetch(`${API_URL}/api/account/balance`, { headers });
-      if (accRes.ok) {
-          const data = await accRes.json();
-          setDemoBalance(data.demoBalance);
+      const accountResult = await requestGet<{ demoBalance: number }>("/api/account/balance");
+      if (accountResult.ok) {
+          setDemoBalance(accountResult.data?.demoBalance || 0);
       }
     } catch (err) {
       console.error("Market fetch failed", err);
     }
   };
 
-  useEffect(() => {
-    fetchMarketData();
-    const interval = setInterval(fetchMarketData, 5000); 
-    return () => clearInterval(interval);
-  }, [activeAsset]);
+  usePolling(fetchMarketData, 5000, [activeAsset]);
 
   // --- 3. EXECUTION ENGINE ---
   const executePaperTrade = async () => {
@@ -124,18 +101,12 @@ export default function TradeTerminal() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/trade/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: activeAsset, amount: tradeAmount }),
-      });
-      
-      const data = await res.json();
-      if (res.ok) {
-        setDemoBalance(data.demoBalance);
+      const result = await requestPostJson<{ demoBalance: number; error?: string }>("/api/trade/execute", { symbol: activeAsset, amount: tradeAmount });
+      if (result.ok) {
+        setDemoBalance(result.data?.demoBalance || 0);
         setTradeAmount("");
       } else {
-        alert(`TRADE REJECTED: ${data.error}`);
+        alert(`TRADE REJECTED: ${result.data?.error}`);
       }
     } catch (err) { 
       alert("Terminal Error."); 
@@ -159,7 +130,7 @@ export default function TradeTerminal() {
           <div className="text-right">
             <p className="font-bold uppercase text-zinc-500 text-xs">Purchasing Power (USD):</p>
             <p className="text-2xl font-black text-green-500 tabular-nums">
-              ${(demoBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              ${formatUsdAmount(demoBalance || 0, { minimumFractionDigits: 2 })}
             </p>
           </div>
         </header>
@@ -172,8 +143,8 @@ export default function TradeTerminal() {
                     <div className="flex items-center gap-4">
                         <h2 className="text-2xl font-black">{activeAsset} / USD</h2>
                         {activeStockDetails && (
-                            <span className={`text-lg font-bold ${activeStockDetails.change?.includes('-') ? 'text-red-500' : 'text-green-500'}`}>
-                                ${activeStockDetails.price.toLocaleString()} ({activeStockDetails.change || "0.00%"})
+                            <span className={`text-lg font-bold ${changeColorClass(activeStockDetails.change || "0.00%", 'text-green-500', 'text-red-500', true)}`}>
+                                ${formatUsdAmount(activeStockDetails.price)} ({activeStockDetails.change || "0.00%"})
                             </span>
                         )}
                     </div>
@@ -199,8 +170,8 @@ export default function TradeTerminal() {
                                 className={`w-full text-left p-3 flex justify-between items-center border ${activeAsset === stock.symbol ? 'border-yellow-500 bg-zinc-900' : 'border-zinc-800 hover:border-zinc-600'} transition-all`}
                             >
                                 <span className="font-bold">{stock.symbol}</span>
-                                <span className={`text-sm ${stock.change?.includes('-') ? 'text-red-500' : 'text-green-500'}`}>
-                                    ${stock.price.toLocaleString()}
+                                <span className={`text-sm ${changeColorClass(stock.change || "0.00%", 'text-green-500', 'text-red-500', true)}`}>
+                                    ${formatUsdAmount(stock.price)}
                                 </span>
                             </button>
                         ))}

@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { requestGet } from "@/app/lib/api";
+import { formatTimestamp, formatUsdAmount } from "@/app/lib/formatting";
 
 export default function AdminHQ() {
   const router = useRouter();
@@ -11,19 +11,16 @@ export default function AdminHQ() {
   const [stats, setStats] = useState({ totalRev: 0, activeUsers: 0 });
 
   const fetchAdminData = async () => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`${API_URL}/api/admin/all-transactions`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const result = await requestGet("/api/admin/all-transactions");
 
-      if (res.status === 403) {
+      if (result.status === 403) {
         alert("CRITICAL: Administrative Clearance Required.");
         router.push("/dashboard");
         return;
       }
 
-      const data = await res.json();
+      const data = result.data || [];
       setLogs(data);
 
       const revenue = data.reduce((acc: number, log: any) => {
@@ -68,7 +65,7 @@ export default function AdminHQ() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="border border-[#00ff41] p-6 bg-[#0d0d0d] shadow-[4px_4px_0px_0px_rgba(0,59,0,1)]">
           <p className="text-[10px] uppercase font-black text-[#008f11] mb-2">Gross Revenue (USDT)</p>
-          <p className="text-4xl font-black text-white tracking-tighter">${stats.totalRev.toLocaleString()}</p>
+          <p className="text-4xl font-black text-white tracking-tighter">${formatUsdAmount(stats.totalRev)}</p>
         </div>
         <div className="border border-[#00ff41] p-6 bg-[#0d0d0d] shadow-[4px_4px_0px_0px_rgba(0,59,0,1)]">
           <p className="text-[10px] uppercase font-black text-[#008f11] mb-2">Total Node Connections</p>
@@ -101,7 +98,7 @@ export default function AdminHQ() {
                 <tr><td colSpan={4} className="p-10 text-center opacity-50 uppercase tracking-widest">No Data Packets Found</td></tr>
               ) : logs.map((log, i) => (
                 <tr key={i} className="hover:bg-[#00ff41]/5 transition-colors">
-                  <td className="p-4 opacity-60 tabular-nums">{new Date(log.date).toLocaleString()}</td>
+                  <td className="p-4 opacity-60 tabular-nums">{formatTimestamp(log.date)}</td>
                   <td className="p-4 font-bold text-white">{log.userEmail}</td>
                   <td className="p-4">
                     <span className="px-2 py-1 bg-[#003b00] text-[9px] font-black rounded uppercase">

@@ -37,7 +37,6 @@ describe("TransactionLedger", () => {
   });
 
   it("formats amounts and displays payout status badges", async () => {
-    vi.setSystemTime(new Date("2025-01-02T12:00:00Z"));
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -58,18 +57,19 @@ describe("TransactionLedger", () => {
   });
 
   it("resolves loading after a fetch failure without crashing", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     render(<TransactionLedger />);
 
     await waitFor(() => expect(screen.queryByText("SYNCING VAULT...")).not.toBeInTheDocument());
     expect(screen.getByText("No node activity detected.")).toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith("Ledger Sync Failure");
   });
 
   it("polls every ten seconds and stops polling after unmount", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
     vi.stubGlobal("fetch", fetchMock);
-    window.fetch = fetchMock;
     const { unmount } = render(<TransactionLedger />);
 
     await act(async () => {

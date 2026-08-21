@@ -24,6 +24,6 @@ describe("Ticker", () => {
     expect(screen.getByText("+1.2%")).toHaveClass("text-[#00ff41]");
     expect(screen.getByText("-0.5%")).toHaveClass("text-red-500");
     expect(screen.getByText("$9.8765")).toBeInTheDocument();
-    expect(screen.queryByText("undefined")).not.toBeInTheDocument();
+    expect(screen.getByText("$9.8765").nextElementSibling).toBeNull();
   });
 });

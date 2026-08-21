@@ -22,7 +22,7 @@ describe("KYCForm", () => {
   it("renders the in-progress notice for submitted users", () => {
     render(<KYCForm kycStatus="SUBMITTED" onStatusUpdate={vi.fn()} />);
     expect(screen.getByText("Status: Verification in Progress. Withdrawals Restricted.")).toBeInTheDocument();
-    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Full Legal Name")).not.toBeInTheDocument();
   });
 
   it("renders and submits the form for other statuses", async () => {

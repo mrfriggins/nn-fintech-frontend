@@ -25,7 +25,6 @@ describe("TransactionHub", () => {
       json: async () => ({}),
     });
     vi.stubGlobal("fetch", fetchMock);
-    window.fetch = fetchMock;
     render(<TransactionHub syncData={syncData} />);
 
     await user.type(screen.getByPlaceholderText("Recipient Node Email"), "recipient@example.com");
@@ -117,6 +116,38 @@ describe("TransactionHub", () => {
     );
     expect(window.alert).toHaveBeenCalledWith("✅ LIQUIDITY DISBURSED: Queued");
     expect(syncData).toHaveBeenCalledOnce();
+  });
+
+  it("alerts the server error and does not sync after a failed withdrawal", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "PayPal account rejected" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(window.prompt).mockReturnValue("payee@example.com");
+    render(<TransactionHub syncData={syncData} />);
+
+    await user.type(screen.getByPlaceholderText("Amount to Withdraw (USD)"), "75");
+    await user.click(screen.getByRole("button", { name: "Direct Payout" }));
+
+    await waitFor(() =>
+      expect(window.alert).toHaveBeenCalledWith("❌ WITHDRAWAL REFUSED: PayPal account rejected"),
+    );
+    expect(syncData).not.toHaveBeenCalled();
+  });
+
+  it("alerts a connection error when a withdrawal request rejects", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    vi.mocked(window.prompt).mockReturnValue("payee@example.com");
+    render(<TransactionHub syncData={syncData} />);
+
+    await user.type(screen.getByPlaceholderText("Amount to Withdraw (USD)"), "75");
+    await user.click(screen.getByRole("button", { name: "Direct Payout" }));
+
+    await waitFor(() => expect(window.alert).toHaveBeenCalledWith("VAULT CONNECTION ERROR"));
+    expect(syncData).not.toHaveBeenCalled();
   });
 
   it("disables both actions while a request is in flight", async () => {

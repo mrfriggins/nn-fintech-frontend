@@ -4,12 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WithdrawPage from "../page";
 
 describe("WithdrawPage", () => {
+  let originalLocation: Location | undefined;
+
   beforeEach(() => {
     localStorage.setItem("token", "withdraw-token");
     vi.spyOn(window, "alert").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    if (originalLocation) {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+        writable: true,
+      });
+      originalLocation = undefined;
+    }
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     localStorage.clear();
@@ -28,7 +38,7 @@ describe("WithdrawPage", () => {
       json: async () => ({}),
     });
     vi.stubGlobal("fetch", fetchMock);
-    const originalWindow = window;
+    originalLocation = window.location;
     const locationSetter = vi.fn();
     const fakeLocation = {
       get href() {
@@ -38,15 +48,11 @@ describe("WithdrawPage", () => {
         locationSetter(value);
       },
     };
-    vi.stubGlobal(
-      "window",
-      new Proxy(originalWindow, {
-        get(target, property, receiver) {
-          if (property === "location") return fakeLocation;
-          return Reflect.get(target, property, receiver);
-        },
-      }),
-    );
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: fakeLocation,
+      writable: true,
+    });
     render(<WithdrawPage />);
 
     await fillForm();

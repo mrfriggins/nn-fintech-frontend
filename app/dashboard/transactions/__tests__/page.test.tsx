@@ -14,7 +14,6 @@ describe("TransactionsPage", () => {
   });
 
   it("renders fetched rows with localized absolute amounts and status defaults", async () => {
-    vi.setSystemTime(new Date("2025-01-02T12:00:00Z"));
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [

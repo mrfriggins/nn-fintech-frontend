@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ApiError, ApiRecord, apiFetch, errorMessage, logError, toText } from "../lib/api";
 
 type ChartCandle = {
   open: number;
@@ -35,7 +36,6 @@ const createDemoMarketTick = () =>
 export default function UnifiedSystemPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
   const [authMode, setAuthMode] = useState<"login" | "register" | "verify">("login");
   const [showPassword, setShowPassword] = useState(false);
@@ -56,6 +56,9 @@ export default function UnifiedSystemPortal() {
   const [stopLoss, setStopLoss] = useState<string>("");
   const [takeProfit, setTakeProfit] = useState<string>("");
   const [algoSignal, setAlgoSignal] = useState<any>(null);
+  const [algoError, setAlgoError] = useState("");
+  const [tradeError, setTradeError] = useState("");
+  const [feedError, setFeedError] = useState("");
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -122,142 +125,173 @@ export default function UnifiedSystemPortal() {
     const token = localStorage.getItem("token");
     if (!token) { setIsInitializing(false); return; }
     try {
-      const res = await fetch(`${API_URL}/api/users/profile`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        setUser(await res.json());
-        setIsAuthenticated(true);
-      } else {
+      setUser(await apiFetch<ApiRecord>("/api/users/profile"));
+      setIsAuthenticated(true);
+    } catch (err) {
+      // Only discard the credential when the backend actually rejected it;
+      // a transport failure must not log the operator out.
+      if (err instanceof ApiError && (err.isUnauthorized || err.isForbidden)) {
         localStorage.removeItem("token");
+        setAuthError("Session expired. Re-authenticate.");
+      } else {
+        logError("session check failed", err);
+        setAuthError(errorMessage(err, "Could not reach the vault backend."));
       }
-    } catch (e) { }
+      setIsAuthenticated(false);
+      setUser(null);
+    }
     setIsInitializing(false);
   };
 
   const executeAuthCall = async (endpoint: string, payload: any) => {
     setAuthLoading(true); setAuthError(""); setAuthSuccess("");
     try {
-      const res = await fetch(`${API_URL}/auth/${endpoint}`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+      const data = await apiFetch<ApiRecord>(`/auth/${endpoint}`, {
+        method: "POST", body: JSON.stringify(payload), auth: false
       });
-      const data = await res.json();
-      setAuthLoading(false);
-      return { ok: res.ok, data };
+      return { ok: true as const, data, error: null };
     } catch (err) {
-      setAuthLoading(false); 
-      setAuthError("Network cluster offline."); 
-      return { ok: false, data: null };
+      logError(`auth/${endpoint} failed`, err);
+      return { ok: false as const, data: null, error: err };
+    } finally {
+      setAuthLoading(false);
     }
+  };
+
+  const commitToken = (data: any) => {
+    if (!data?.token) {
+      setAuthError("Backend returned no access token.");
+      return;
+    }
+    localStorage.setItem("token", data.token);
+    checkSession();
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { ok, data } = await executeAuthCall("login", { email, password });
-    if (ok) { localStorage.setItem("token", data.token); checkSession(); }
-    else if (data?.error === "Verify email first.") setAuthMode("verify");
-    else setAuthError(data?.error || "Login rejected.");
+    const { ok, data, error } = await executeAuthCall("login", { email, password });
+    if (ok) commitToken(data);
+    else if (error instanceof ApiError && error.message === "Verify email first.") setAuthMode("verify");
+    else setAuthError(errorMessage(error, "Login rejected."));
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { ok, data } = await executeAuthCall("register", { email, password, fullName, country });
+    const { ok, error } = await executeAuthCall("register", { email, password, fullName, country });
     if (ok) { setAuthSuccess("Verification transmission dispatched."); setAuthMode("verify"); }
-    else setAuthError(data?.error || "Registration rejected.");
+    else setAuthError(errorMessage(error, "Registration rejected."));
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { ok, data } = await executeAuthCall("verify", { email, otp });
-    if (ok) { localStorage.setItem("token", data.token); checkSession(); }
-    else setAuthError(data?.error || "Verification failed.");
+    const { ok, data, error } = await executeAuthCall("verify", { email, otp });
+    if (ok) commitToken(data);
+    else setAuthError(errorMessage(error, "Verification failed."));
   };
 
   const switchAuthMode = (mode: any) => { setAuthMode(mode); setAuthError(""); setAuthSuccess(""); setShowPassword(false); };
   const logout = () => { localStorage.removeItem("token"); setIsAuthenticated(false); setUser(null); };
 
+  const fallBackToDemoFeed = (reason: string) => {
+    setFeedError(reason);
+    const demoData = createDemoMarketTick();
+    setMarketAssets(demoData);
+    if (!selectedAsset) setSelectedAsset(demoData[0]);
+  };
+
   const fetchMarketData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/market/stream`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-      if (res.ok) {
-        const data = await res.json(); 
-        if (Array.isArray(data) && data.length > 0) {
-          setMarketAssets(data);
-          if (!selectedAsset) setSelectedAsset(data[0]);
-          return;
-        }
+      const data = await apiFetch<unknown>("/api/market/stream");
+      if (Array.isArray(data) && data.length > 0) {
+        setFeedError("");
+        setMarketAssets(data);
+        if (!selectedAsset) setSelectedAsset(data[0]);
+        return;
       }
-      const demoData = createDemoMarketTick();
-      setMarketAssets(demoData);
-      if (!selectedAsset) setSelectedAsset(demoData[0]);
-    } catch (e) {
-      const demoData = createDemoMarketTick();
-      setMarketAssets(demoData);
-      if (!selectedAsset) setSelectedAsset(demoData[0]);
+      fallBackToDemoFeed("Live feed returned no assets — showing simulated prices.");
+    } catch (err) {
+      logError("market stream failed", err);
+      fallBackToDemoFeed(`${errorMessage(err, "Live feed unavailable.")} Showing simulated prices.`);
     }
   };
 
   const fetchPredictiveSignal = async (symbol: string) => {
-    setAlgoSignal(null);
+    setAlgoSignal(null); setAlgoError("");
     try {
-      const res = await fetch(`${API_URL}/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-      const data = await res.json();
-      if (res.ok) setAlgoSignal(data);
-      else if (data.paymentRequired) setAlgoSignal({ locked: true });
-    } catch (e) { setAlgoSignal({ locked: true }); }
+      setAlgoSignal(await apiFetch<ApiRecord>(`/api/ai/inbuilt/predict/${encodeURIComponent(symbol)}`));
+    } catch (err) {
+      logError("predictive signal failed", err);
+      // A paywall and an outage are different states: never render an outage
+      // as "locked", or the operator will be sent to checkout for nothing.
+      if (err instanceof ApiError && err.isPaymentRequired) setAlgoSignal({ locked: true });
+      else setAlgoError(errorMessage(err, "Predictive vector unavailable."));
+    }
   };
 
   const handleExecuteTrade = async (side: "buy" | "sell") => {
     if (!selectedAsset) return;
+    const amount = Number(tradeAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTradeError("Enter a position size greater than zero.");
+      return;
+    }
+    setTradeError("");
     try {
-      const res = await fetch(`${API_URL}/api/trade/execute`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: selectedAsset.symbol, side, amount: Number(tradeAmount), sl: stopLoss, tp: takeProfit })
+      const data = await apiFetch<ApiRecord>("/api/trade/execute", {
+        method: "POST",
+        body: JSON.stringify({ symbol: selectedAsset.symbol, side, amount, sl: stopLoss, tp: takeProfit })
       });
-      const data = await res.json();
-      if (res.ok) { 
-        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: [...(prev.activePositions || []), data.position] })); 
-        setStopLoss(""); setTakeProfit("");
-      } else alert(`Denied: ${data.error}`);
-    } catch (e) {}
+      setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: [...(prev?.activePositions || []), data.position] }));
+      setStopLoss(""); setTakeProfit("");
+    } catch (err) {
+      logError("trade execution failed", err);
+      setTradeError(`Denied: ${errorMessage(err, "Execution engine rejected the order.")}`);
+    }
   };
 
   const handleClosePosition = async (positionId: string) => {
+    setTradeError("");
     try {
-      const res = await fetch(`${API_URL}/api/trade/close`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ positionId })
+      const data = await apiFetch<ApiRecord>("/api/trade/close", {
+        method: "POST", body: JSON.stringify({ positionId })
       });
-      const data = await res.json();
-      if (res.ok) {
-        setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: prev.activePositions.filter((p: any) => p.id !== positionId) }));
-      }
-    } catch (e) {}
+      setUser((prev: any) => ({ ...prev, demoBalance: data.newBalance, activePositions: (prev?.activePositions || []).filter((p: any) => p.id !== positionId) }));
+    } catch (err) {
+      logError("position close failed", err);
+      setTradeError(`Close rejected: ${errorMessage(err, "Position is still open.")}`);
+    }
   };
 
   const initializeCryptoCheckout = async () => {
     setIsCheckoutLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/payment/create`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` }
-      });
-      const data = await res.json();
-      if (res.ok && data.checkoutUrl) window.location.href = data.checkoutUrl;
-      else alert(data.error || "Could not launch processing module.");
-    } catch (e) { alert("Billing engine endpoint unreachable."); }
-    setIsCheckoutLoading(false);
+      const data = await apiFetch<ApiRecord>("/api/payment/create", { method: "POST" });
+      const checkoutUrl = toText(data?.checkoutUrl);
+      if (!checkoutUrl) throw new Error("Billing engine returned no checkout URL.");
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      logError("checkout creation failed", err);
+      alert(errorMessage(err, "Could not launch processing module."));
+      setIsCheckoutLoading(false);
+    }
   };
 
   const askOracle = async () => {
     if (!aiQuestion) return;
     setIsAiLoading(true); setAiResponse("");
     try {
-      const res = await fetch(`${API_URL}/api/ai/openai/tutor`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ question: aiQuestion })
+      const data = await apiFetch<ApiRecord>("/api/ai/openai/tutor", {
+        method: "POST", body: JSON.stringify({ question: aiQuestion })
       });
-      const data = await res.json(); 
-      if (res.ok) setAiResponse(data.tutorResponse);
-      else if (data.paymentRequired) setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
-    } catch (error) { setAiResponse("[CRITICAL ERROR] Core connection failed."); }
+      setAiResponse(toText(data?.tutorResponse) || "[EMPTY RESPONSE] Core returned no output.");
+    } catch (err) {
+      logError("oracle query failed", err);
+      if (err instanceof ApiError && err.isPaymentRequired) {
+        setAiResponse("[UPGRADE REQUIRED] System core locked. Please subscribe via the checkout tunnel to query the intelligence neural matrix.");
+      } else {
+        setAiResponse(`[CRITICAL ERROR] ${errorMessage(err, "Core connection failed.")}`);
+      }
+    }
     setIsAiLoading(false);
   };
 
@@ -371,6 +405,12 @@ export default function UnifiedSystemPortal() {
           ) : (<span className="text-gray-600 tracking-widest text-xs">SYNCHRONIZING SYSTEM INSTRUMENT RATES...</span>)}
         </div>
       </div>
+
+      {feedError && (
+        <div className="w-full bg-amber-950/30 border-b border-amber-900 text-amber-400 text-[10px] tracking-widest px-4 py-2 z-20">
+          [ FEED DEGRADED ] {feedError}
+        </div>
+      )}
 
       <header className="border-b border-gray-900 p-2 md:p-4 flex flex-col md:flex-row justify-between items-center gap-2 md:gap-4 bg-black z-20 relative">
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-6 w-full md:w-auto">
@@ -493,7 +533,9 @@ export default function UnifiedSystemPortal() {
                   </div>
                   <div className="border border-neutral-900 p-3 bg-neutral-950 mb-4 text-[11px] mt-4">
                     <p className="text-purple-400 font-bold mb-2">QUANT ALGO TELEMETRY</p>
-                    {algoSignal?.locked ? (
+                    {algoError ? (
+                      <p className="text-red-500 text-[10px]">{algoError}</p>
+                    ) : algoSignal?.locked ? (
                       <div className="space-y-2">
                         <p className="text-gray-500 text-[10px]">Predictive vector mapping is locked on your node tier.</p>
                         <button onClick={initializeCryptoCheckout} disabled={isCheckoutLoading} className="w-full bg-purple-950 text-purple-400 border border-purple-700 text-[10px] py-1 font-bold hover:bg-purple-500 hover:text-black">
@@ -506,9 +548,14 @@ export default function UnifiedSystemPortal() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                  {tradeError && (
+                    <p className="border border-red-900 bg-red-950/20 text-red-500 text-[10px] p-2 tracking-wider">{tradeError}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => handleExecuteTrade("buy")} className="bg-green-950/40 border border-green-700 text-green-400 hover:bg-green-500 hover:text-black p-3 text-xs font-bold tracking-widest transition-colors">EXECUTE LONG</button>
                   <button onClick={() => handleExecuteTrade("sell")} className="bg-red-950/40 border border-red-700 text-red-400 hover:bg-red-500 hover:text-black p-3 text-xs font-bold tracking-widest transition-colors">EXECUTE SHORT</button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,20 +1,19 @@
 "use client";
 import { useEffect, useState } from "react";
+import { ApiRecord, apiFetchArray, errorMessage, logError, toNumber, toText } from "../lib/api";
 
 export default function TransactionLedger() {
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<ApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const fetchLedger = async () => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/account/transactions", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setTransactions(data);
+      setTransactions(await apiFetchArray<ApiRecord>("/api/account/transactions"));
+      setError("");
     } catch (err) {
-      console.error("Ledger Sync Failure");
+      logError("ledger sync failed", err);
+      setError(errorMessage(err, "Ledger sync failure."));
     } finally {
       setLoading(false);
     }
@@ -31,25 +30,33 @@ export default function TransactionLedger() {
   return (
     <div className="bg-white border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] max-h-[500px] overflow-y-auto font-mono">
       <h2 className="text-2xl font-black uppercase italic border-b-4 border-black mb-4 pb-2">Activity Logs</h2>
+
+      {error && (
+        <p className="mb-4 bg-red-100 border-2 border-red-600 text-red-700 p-3 font-black uppercase text-[10px]">{error}</p>
+      )}
       
       <div className="space-y-4">
         {transactions.length === 0 ? (
-            <p className="text-gray-400 italic text-sm">No node activity detected.</p>
+            <p className="text-gray-400 italic text-sm">{error ? "Ledger unavailable." : "No node activity detected."}</p>
         ) : (
-          transactions.map((tx: any, i: number) => (
+          transactions.map((tx, i) => {
+            const type = toText(tx.type, "UNKNOWN");
+            const amount = toNumber(tx.amount);
+            const date = new Date(toText(tx.date));
+            return (
             <div key={i} className="flex justify-between items-center border-b-2 border-zinc-100 pb-2">
               <div className="flex flex-col">
-                <span className={`text-[10px] font-black uppercase ${tx.type.includes('AI') ? 'text-blue-600' : 'text-black'}`}>
-                  {tx.type}
+                <span className={`text-[10px] font-black uppercase ${type.includes('AI') ? 'text-blue-600' : 'text-black'}`}>
+                  {type}
                 </span>
                 <span className="text-[9px] text-gray-400 uppercase">
-                  {new Date(tx.date).toLocaleString()}
+                  {Number.isNaN(date.getTime()) ? "—" : date.toLocaleString()}
                 </span>
               </div>
               
               <div className="text-right">
-                <span className={`text-sm font-black ${tx.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)} USD
+                <span className={`text-sm font-black ${amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {amount > 0 ? '+' : ''}{amount.toFixed(2)} USD
                 </span>
                 
                 {/* BACKEND STATUS HANDSHAKE */}
@@ -65,7 +72,8 @@ export default function TransactionLedger() {
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

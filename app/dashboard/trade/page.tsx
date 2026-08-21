@@ -2,14 +2,15 @@
 import { useState, useEffect, useRef } from "react";
 // Added IChartApi and ISeriesApi to satisfy TypeScript's strict mode
 import { createChart, ColorType, CandlestickSeries, Time, IChartApi, ISeriesApi } from "lightweight-charts";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { ApiRecord, apiFetch, apiFetchArray, errorMessage, logError, toNumber } from "../../lib/api";
 
 export default function TradeTerminal() {
   const [stocks, setStocks] = useState<any[]>([]);
   const [demoBalance, setDemoBalance] = useState(0);
   const [tradeAmount, setTradeAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [feedError, setFeedError] = useState("");
+  const [tradeError, setTradeError] = useState("");
   
   const [activeAsset, setActiveAsset] = useState("BTC");
   
@@ -77,39 +78,41 @@ export default function TradeTerminal() {
 
   // --- 2. LIVE MARKET SYNCHRONIZATION ---
   const fetchMarketData = async () => {
-    const headers = { "Authorization": `Bearer ${localStorage.getItem("token")}` };
-    
+    const failures: string[] = [];
+
     try {
-      const stockRes = await fetch(`${API_URL}/api/market/stocks`, { headers });
-      if (stockRes.ok) {
-          const liveStocks = await stockRes.json();
-          setStocks(liveStocks);
+      const liveStocks = await apiFetchArray<ApiRecord>("/api/market/stocks");
+      setStocks(liveStocks);
 
-          const activeStockData = liveStocks.find((s: any) => s.symbol === activeAsset);
-          if (activeStockData && seriesRef.current && currentBarRef.current) {
-              const livePrice = activeStockData.price;
-              let currentBar = { ...currentBarRef.current };
-              
-              // STRICT FIX: Live time must also be an integer cast as Time
-              currentBar.time = Math.floor(Date.now() / 1000) as Time;
-              
-              currentBar.close = livePrice;
-              currentBar.high = Math.max(currentBar.high, livePrice);
-              currentBar.low = Math.min(currentBar.low, livePrice);
-              
-              seriesRef.current.update(currentBar);
-              currentBarRef.current = currentBar;
-          }
-      }
+      const activeStockData = liveStocks.find(s => s?.symbol === activeAsset);
+      if (activeStockData && seriesRef.current && currentBarRef.current) {
+          const livePrice = toNumber(activeStockData.price);
+          let currentBar = { ...currentBarRef.current };
 
-      const accRes = await fetch(`${API_URL}/api/account/balance`, { headers });
-      if (accRes.ok) {
-          const data = await accRes.json();
-          setDemoBalance(data.demoBalance);
+          // STRICT FIX: Live time must also be an integer cast as Time
+          currentBar.time = Math.floor(Date.now() / 1000) as Time;
+
+          currentBar.close = livePrice;
+          currentBar.high = Math.max(currentBar.high, livePrice);
+          currentBar.low = Math.min(currentBar.low, livePrice);
+
+          seriesRef.current.update(currentBar);
+          currentBarRef.current = currentBar;
       }
     } catch (err) {
-      console.error("Market fetch failed", err);
+      logError("market stocks fetch failed", err);
+      failures.push(errorMessage(err, "Market feed unavailable."));
     }
+
+    try {
+      const data = await apiFetch<ApiRecord>("/api/account/balance");
+      setDemoBalance(Number(data?.demoBalance) || 0);
+    } catch (err) {
+      logError("balance fetch failed", err);
+      failures.push(errorMessage(err, "Balance unavailable."));
+    }
+
+    setFeedError(failures.join(" "));
   };
 
   useEffect(() => {
@@ -120,31 +123,30 @@ export default function TradeTerminal() {
 
   // --- 3. EXECUTION ENGINE ---
   const executePaperTrade = async () => {
-    if (!tradeAmount || parseFloat(tradeAmount) <= 0) return alert("Enter valid capital.");
+    const amount = parseFloat(tradeAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTradeError("Enter valid capital.");
+      return;
+    }
 
     setLoading(true);
+    setTradeError("");
     try {
-      const res = await fetch(`${API_URL}/api/trade/execute`, {
+      const data = await apiFetch<ApiRecord>("/api/trade/execute", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ symbol: activeAsset, amount: tradeAmount }),
+        body: JSON.stringify({ symbol: activeAsset, amount }),
       });
-      
-      const data = await res.json();
-      if (res.ok) {
-        setDemoBalance(data.demoBalance);
-        setTradeAmount("");
-      } else {
-        alert(`TRADE REJECTED: ${data.error}`);
-      }
-    } catch (err) { 
-      alert("Terminal Error."); 
-    } finally { 
-      setLoading(false); 
+      setDemoBalance(Number(data?.demoBalance) || 0);
+      setTradeAmount("");
+    } catch (err) {
+      logError("paper trade failed", err);
+      setTradeError(`TRADE REJECTED: ${errorMessage(err, "Terminal error.")}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const activeStockDetails = stocks.find(s => s.symbol === activeAsset);
+  const activeStockDetails = stocks.find(s => s?.symbol === activeAsset);
 
   return (
     <div className="min-h-screen bg-black p-4 md:p-8 font-mono text-white">
@@ -164,6 +166,12 @@ export default function TradeTerminal() {
           </div>
         </header>
 
+        {feedError && (
+          <div className="border border-amber-700 bg-amber-950/30 text-amber-400 p-3 text-xs font-bold uppercase">
+            {feedError}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             
             {/* LEFT: THE CHART */}
@@ -173,7 +181,7 @@ export default function TradeTerminal() {
                         <h2 className="text-2xl font-black">{activeAsset} / USD</h2>
                         {activeStockDetails && (
                             <span className={`text-lg font-bold ${activeStockDetails.change?.includes('-') ? 'text-red-500' : 'text-green-500'}`}>
-                                ${activeStockDetails.price.toLocaleString()} ({activeStockDetails.change || "0.00%"})
+                                ${Number(activeStockDetails.price ?? 0).toLocaleString()} ({activeStockDetails.change || "0.00%"})
                             </span>
                         )}
                     </div>
@@ -200,7 +208,7 @@ export default function TradeTerminal() {
                             >
                                 <span className="font-bold">{stock.symbol}</span>
                                 <span className={`text-sm ${stock.change?.includes('-') ? 'text-red-500' : 'text-green-500'}`}>
-                                    ${stock.price.toLocaleString()}
+                                    ${Number(stock.price ?? 0).toLocaleString()}
                                 </span>
                             </button>
                         ))}
@@ -240,6 +248,9 @@ export default function TradeTerminal() {
                                 SHORT (Sell)
                             </button>
                         </div>
+                        {tradeError && (
+                            <p className="border border-red-700 bg-red-950/30 text-red-400 p-2 text-[10px] font-bold uppercase">{tradeError}</p>
+                        )}
                         <p className="text-[10px] text-zinc-600 font-bold text-center mt-4">Orders execute instantly at market price.</p>
                     </div>
                 </div>

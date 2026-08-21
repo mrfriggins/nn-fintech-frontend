@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import { apiFetch, errorMessage, logError } from "../../lib/api";
 
 export default function DepositPage() {
   const [amount, setAmount] = useState("");
   const [lockedAmount, setLockedAmount] = useState("");
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [error, setError] = useState("");
 
   // 1. DYNAMICALLY INJECT THE PAYPAL SECURE SCRIPT
   useEffect(() => {
@@ -15,12 +15,22 @@ export default function DepositPage() {
         return;
     }
     
+    const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+    if (!clientId) {
+      setError("Payment gateway is not configured (NEXT_PUBLIC_PAYPAL_CLIENT_ID missing).");
+      return;
+    }
+
     const script = document.createElement("script");
     script.id = "paypal-script";
-    // CEO ACTION REQUIRED: Replace 'test' with your actual PayPal Sandbox Client ID
-    script.src = `https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD`;
     script.async = true;
     script.onload = () => setScriptLoaded(true);
+    script.onerror = () => {
+      // Without this the page would sit on an empty gateway area forever.
+      script.remove();
+      setError("Payment gateway script failed to load. Check your connection and retry.");
+    };
     document.body.appendChild(script);
   }, []);
 
@@ -28,7 +38,11 @@ export default function DepositPage() {
   const lockCapital = (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
-    if (isNaN(val) || val < 1) return alert("Minimum institutional deposit is $1.00 USD.");
+    if (isNaN(val) || val < 1) {
+      setError("Minimum institutional deposit is $1.00 USD.");
+      return;
+    }
+    setError("");
     setLockedAmount(val.toFixed(2));
   };
 
@@ -45,23 +59,26 @@ export default function DepositPage() {
             purchase_units: [{ amount: { value: lockedAmount } }]
           });
         },
-        onApprove: async (data: any, actions: any) => {
+        onApprove: async (data: any) => {
           // Send the authorization to your backend vault to verify and capture
-          const res = await fetch(`${API_URL}/api/deposit/capture`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("token")}`
-            },
-            body: JSON.stringify({ orderID: data.orderID })
-          });
-
-          if (res.ok) {
+          try {
+            await apiFetch("/api/deposit/capture", {
+              method: "POST",
+              body: JSON.stringify({ orderID: data.orderID })
+            });
+            setError("");
             alert("CAPITAL SECURED: Real Vault Liquidity Updated.");
             window.location.href = "/dashboard";
-          } else {
-            alert("SECURITY ALERT: Transaction verification failed.");
+          } catch (err) {
+            logError("deposit capture failed", err);
+            setError(
+              `SECURITY ALERT: ${errorMessage(err, "Transaction verification failed.")} Order ${data.orderID} was approved but not captured — keep this reference.`
+            );
           }
+        },
+        onError: (err: unknown) => {
+          logError("paypal sdk error", err);
+          setError("Payment gateway error. No funds were moved.");
         }
       }).render("#paypal-button-container");
     }
@@ -74,6 +91,12 @@ export default function DepositPage() {
         <h1 className="text-4xl font-black uppercase italic">Fund Vault</h1>
         <p className="text-zinc-400 font-bold text-xs mt-2 uppercase">1:1 Fiat Backed Real Capital Integration</p>
       </div>
+
+      {error && (
+        <div className="bg-red-100 border-4 border-red-600 text-red-700 p-4 font-black uppercase text-xs">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
         {!lockedAmount ? (

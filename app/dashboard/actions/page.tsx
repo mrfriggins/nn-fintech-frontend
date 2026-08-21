@@ -1,46 +1,43 @@
 "use client";
 import { useState } from "react";
+import { apiFetch, errorMessage, logError } from "../../lib/api";
 
-export default function TransactionHub({ userBalance, syncData }: any) {
+export default function TransactionHub({ syncData }: any) {
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [method, setMethod] = useState("M-Pesa"); // Default for Tanzania
   const [status, setStatus] = useState("");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
   // --- 💸 PEER-TO-PEER TRANSFER ---
   const handleTransfer = async () => {
     setStatus("Processing Transfer...");
-    const res = await fetch("http://127.0.0.1:8080/api/transfer/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ recipientEmail: recipient, amount })
-    });
-    const data = await res.json();
-    if (res.ok) {
+    try {
+      await apiFetch("/api/transfer/send", {
+        method: "POST",
+        body: JSON.stringify({ recipientEmail: recipient, amount })
+      });
       setStatus("✅ Transfer Complete!");
-      syncData(); // Refresh balance
-    } else {
-      setStatus(`❌ Error: ${data.error}`);
+      syncData?.(); // Refresh balance
+    } catch (err) {
+      logError("p2p transfer failed", err);
+      setStatus(`❌ Error: ${errorMessage(err, "Transfer could not be completed.")}`);
     }
   };
 
   // --- 🏦 WITHDRAWAL REQUEST (KYC GUARDED) ---
   const handleWithdraw = async () => {
     setStatus("Logging Withdrawal...");
-    const res = await fetch("http://127.0.0.1:8080/api/withdraw/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({ amount, method, details: `Withdraw to ${method} account` })
-    });
-    const data = await res.json();
-    if (res.ok) {
+    try {
+      await apiFetch("/api/withdraw/request", {
+        method: "POST",
+        body: JSON.stringify({ amount, method, details: `Withdraw to ${method} account` })
+      });
       setStatus("✅ Request Sent! Awaiting Admin Approval.");
-      syncData();
-    } else {
-      // This will catch the "KYC VERIFICATION REQUIRED" error from your backend
-      setStatus(`❌ Denied: ${data.error}`);
+      syncData?.();
+    } catch (err) {
+      // Surfaces backend rejections such as "KYC VERIFICATION REQUIRED"
+      logError("withdrawal request failed", err);
+      setStatus(`❌ Denied: ${errorMessage(err, "Withdrawal request was not accepted.")}`);
     }
   };
 
